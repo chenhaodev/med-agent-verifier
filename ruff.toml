@@ -1,0 +1,6 @@
+# Ruff 配置 — med-agent-verifier 的 Python 工具脚本（bin/*.py）
+# 行宽 99，与兄弟项目一致；print 多含中文。
+line-length = 99
+
+[lint]
+select = ["E", "F", "I"]  # pycodestyle(E) + pyflakes(F) + isort(I)

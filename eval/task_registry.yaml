@@ -1,0 +1,46 @@
+# task_registry.yaml — 每个 task/源 → 评分方式、judge rubric、最短回答长度、gold 文件。
+# eval_worker.sh 按 gold_type 选 judge prompt；本表是 check.sh 的覆盖性校验对象，
+# 也为 Phase 2 的结构化 task 覆盖（judge_prompt_<task>.md）与 MedEthics accuracy 路径预留位。
+
+defaults:
+  metric: judge            # 默认 LLM-as-a-Judge
+  min_response_len: 200    # 短于此触发一次重试
+  judge_prompt: judge_prompt.md
+
+# ── Track A：MedBench（reference 型，judge 看 95 分答案）──
+medbench:
+  gold_type: reference
+  gold_glob: medbench-agent-95/*.jsonl
+  judge_prompt: judge_prompt_reference.md
+  tasks:
+    MedCOT:      {capability: 多步临床推理链}
+    MedDecomp:   {capability: 任务分解}
+    MedPathPlan: {capability: 临床路径规划}
+    MedReflect:  {capability: 自我反思/纠错}
+    MedCallAPI:  {capability: 生成合规 API 调用, min_response_len: 100}
+    MedRetAPI:   {capability: 检索式 API 使用, min_response_len: 100}
+    MedDBOps:    {capability: 临床数据库操作, min_response_len: 100}
+    MedCollab:   {capability: 多智能体协作}
+    MedLongConv: {capability: 长程多轮对话}
+    MedLongQA:   {capability: 长上下文问答}
+    MedShield:   {capability: 风险识别+拦截}
+    MedDefend:   {capability: 对抗/防御鲁棒性}   # 无 .md 规约，仅 jsonl
+
+# ── Track B：book gold（criteria 型，无整篇参考）──
+book:
+  gold_type: criteria
+  judge_prompt: judge_prompt.md
+  sources:
+    internists:
+      gold_file: ../med-agent-internists/eval/gold.yaml
+      capability: 内科（西氏内科精要）多专科
+    psy:
+      gold_file: ../med-agent-psy/eval/gold.yaml
+      capability: 精神科（DSM-5）多领域
+
+# ── Phase 2 预留：MedEthics 单选准确率（accuracy），数据到位后启用 ──
+pending:
+  MedEthics:
+    metric: accuracy
+    parser: parse_choice.py
+    note: medbench-agent-95/MedEthics.md 存在但无 .jsonl 数据

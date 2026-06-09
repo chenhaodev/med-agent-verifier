@@ -1,0 +1,8 @@
+.cache/
+.env
+*.pdf
+eval/results/*.json
+eval/results/*_summary.txt
+__pycache__/
+*.pyc
+.DS_Store
