@@ -7,6 +7,7 @@
 #   ./bin/eval.sh --track both --sample 2 --model qwen3.5
 #
 # 选项：
+#   --subset mini|medium|large   命名分层子集（eval/subsets/*.yaml，由 select_subset.py 生成）
 #   --track book|medbench|both   --task T1,T2   --domain S1,S2（仅 Track B）
 #   --id ID   --limit N   --sample N（每 task/domain 前 N 条）
 #   --model M（被测 Ollama 模型）   --think on|off（DUT 思考开关，默认随模型）
@@ -28,7 +29,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 TRACK="both"
-TASK=""; DOMAIN=""; FILTER_ID=""; LIMIT=""; SAMPLE=""
+TASK=""; DOMAIN=""; FILTER_ID=""; LIMIT=""; SAMPLE=""; SUBSET=""
 OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5:1.5b}"
 OLLAMA_THINK="${OLLAMA_THINK:-}"   # DUT 思考开关：on|off；空=模型默认
 JUDGE_MODEL="${JUDGE_MODEL:-${DEEPSEEK_MODEL:-deepseek-v4-flash}}"
@@ -41,6 +42,7 @@ EVAL_NO_CACHE=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --track)       TRACK="$2";            shift 2 ;;
+    --subset)      SUBSET="$2";           shift 2 ;;
     --task)        TASK="$2";             shift 2 ;;
     --domain)      DOMAIN="$2";           shift 2 ;;
     --id)          FILTER_ID="$2";        shift 2 ;;
@@ -76,6 +78,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 
 # ─── 选题：load_dataset.py 归一化 + 过滤 → 每条 q_NNNN.json ──────
 LOADER_ARGS=(--track "$TRACK")
+[[ -n "$SUBSET" ]]    && LOADER_ARGS+=(--subset "$SUBSET")
 [[ -n "$TASK" ]]      && LOADER_ARGS+=(--task "$TASK")
 [[ -n "$DOMAIN" ]]    && LOADER_ARGS+=(--domain "$DOMAIN")
 [[ -n "$FILTER_ID" ]] && LOADER_ARGS+=(--id "$FILTER_ID")

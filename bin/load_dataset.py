@@ -116,9 +116,40 @@ def load_book():
     return records
 
 
+def _apply_subset(records, name):
+    """按命名清单 eval/subsets/<name>.yaml 取片，并保持清单内顺序（mini-bench 固定基准）。
+
+    `all: true`（large）= 动态全量，原样返回。否则按 (track, task, str(id)) 精确匹配清单 refs。
+    """
+    import yaml
+
+    path = os.path.join(ROOT_DIR, "eval", "subsets", f"{name}.yaml")
+    if not os.path.exists(path):
+        print(f"错误：子集清单不存在：{path}", file=sys.stderr)
+        sys.exit(1)
+    with open(path, encoding="utf-8") as f:
+        manifest = yaml.safe_load(f) or {}
+    if manifest.get("all"):
+        return records
+    by_key = {(r["track"], r["task"], str(r["id"])): r for r in records}
+    out, missing = [], []
+    for ref in manifest.get("records", []) or []:
+        key = (ref["track"], ref["task"], str(ref["id"]))
+        if key in by_key:
+            out.append(by_key[key])
+        else:
+            missing.append(key)
+    if missing:
+        print(f"警告：子集 {name} 有 {len(missing)} 条 ref 在当前 gold 中找不到"
+              f"（gold 可能已变动，建议重跑 select_subset.py）：{missing[:3]}…", file=sys.stderr)
+    return out
+
+
 def _filter(records, args):
     """确定性过滤 → 可控子集。"""
     out = records
+    if getattr(args, "subset", None):
+        out = _apply_subset(out, args.subset)
     if args.task:
         tasks = {t.strip() for t in args.task.split(",") if t.strip()}
         out = [r for r in out if r["task"] in tasks]
@@ -144,6 +175,7 @@ def _filter(records, args):
 def main():
     ap = argparse.ArgumentParser(description="统一化 gold 加载器（Track A + B）")
     ap.add_argument("--track", choices=["book", "medbench", "both"], default="both")
+    ap.add_argument("--subset", help="命名子集清单 eval/subsets/<name>.yaml（mini/medium/large）")
     ap.add_argument("--task", help="逗号分隔的 task 名（MedCOT / internists / psy …）")
     ap.add_argument("--domain", help="逗号分隔的 specialty（仅 Track B，如 cardiology）")
     ap.add_argument("--id", help="精确匹配单条记录 id")

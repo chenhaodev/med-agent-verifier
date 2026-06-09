@@ -1,0 +1,11 @@
+# large 子集 — 由 bin/select_subset.py 生成（请勿手改；gold 变动后重跑刷新）
+name: large
+description: 全量（嵌套 mini⊂medium⊂large）
+selection:
+  method: embed-mmr
+  lambda: 0.5
+  embed_model: nomic-embed-text
+  generated: 2026-06-10
+  source_counts: {medbench: 360, book: 235}
+all: true
+records: []

@@ -1,0 +1,110 @@
+# medium 子集 — 由 bin/select_subset.py 生成（请勿手改；gold 变动后重跑刷新）
+name: medium
+description: 最难+最正交 ≤100（嵌套 mini⊂medium⊂large）
+selection:
+  method: embed-mmr
+  lambda: 0.5
+  embed_model: nomic-embed-text
+  generated: 2026-06-10
+  source_counts: {medbench: 360, book: 235}
+records:
+  - {track: medbench, task: MedDefend, id: 132, domain: null, rank: 1, difficulty: 1.0}
+  - {track: medbench, task: MedCollab, id: 32, domain: null, rank: 2, difficulty: 0.619}
+  - {track: medbench, task: MedShield, id: 15, domain: null, rank: 3, difficulty: 0.518}
+  - {track: medbench, task: MedLongQA, id: 35, domain: null, rank: 4, difficulty: 0.479}
+  - {track: medbench, task: MedReflect, id: 100, domain: null, rank: 5, difficulty: 0.46}
+  - {track: medbench, task: MedCOT, id: 146, domain: null, rank: 6, difficulty: 0.351}
+  - {track: medbench, task: MedPathPlan, id: 42, domain: null, rank: 7, difficulty: 0.298}
+  - {track: medbench, task: MedLongConv, id: 27, domain: null, rank: 8, difficulty: 0.215}
+  - {track: medbench, task: MedDBOps, id: 86, domain: null, rank: 9, difficulty: 0.113}
+  - {track: medbench, task: MedDecomp, id: 112, domain: null, rank: 10, difficulty: 0.057}
+  - {track: medbench, task: MedRetAPI, id: 55, domain: null, rank: 11, difficulty: 0.056}
+  - {track: medbench, task: MedCallAPI, id: 80, domain: null, rank: 12, difficulty: 0.033}
+  - {track: book, task: internists, id: "CARD_HTN_06_GUIDELINE", domain: cardiology, rank: 13, difficulty: 1.0}
+  - {track: book, task: psy, id: "DEP_MDD_P1", domain: depressive, rank: 14, difficulty: 0.966}
+  - {track: book, task: internists, id: "PANCREAS_DIET_01", domain: digestive, rank: 15, difficulty: 0.847}
+  - {track: book, task: psy, id: "MED_NMS_D1", domain: med_induced, rank: 16, difficulty: 0.847}
+  - {track: book, task: internists, id: "NEURO_DEMENTIA_01", domain: neurology, rank: 17, difficulty: 0.847}
+  - {track: book, task: internists, id: "RESP_LUNG_TUMOR_01", domain: respiratory, rank: 18, difficulty: 0.847}
+  - {track: book, task: internists, id: "RHEUM_VASC_01", domain: rheumatology, rank: 19, difficulty: 0.847}
+  - {track: book, task: psy, id: "TRA_PTSD_P1", domain: trauma, rank: 20, difficulty: 0.847}
+  - {track: book, task: internists, id: "INFECT_LOWER_RESP_01", domain: infectious, rank: 21, difficulty: 0.847}
+  - {track: book, task: internists, id: "ONCO_NAUSEA_01", domain: oncology, rank: 22, difficulty: 0.847}
+  - {track: book, task: psy, id: "EAT_AN_D1", domain: feeding_eating, rank: 23, difficulty: 0.847}
+  - {track: book, task: internists, id: "THR_DVT_01", domain: hematology, rank: 24, difficulty: 0.847}
+  - {track: book, task: internists, id: "ENDO_ADRENAL_01", domain: endocrine, rank: 25, difficulty: 0.847}
+  - {track: book, task: internists, id: "MENS_ED_01", domain: mens_health, rank: 26, difficulty: 0.847}
+  - {track: book, task: psy, id: "ANX_PANIC_D1", domain: anxiety, rank: 27, difficulty: 0.847}
+  - {track: book, task: internists, id: "SUBS_ALCOHOL_01", domain: substance_use, rank: 28, difficulty: 0.847}
+  - {track: medbench, task: MedDefend, id: 111, domain: null, rank: 29, difficulty: 0.992}
+  - {track: book, task: internists, id: "PERI_PREOP_01", domain: perioperative, rank: 30, difficulty: 0.729}
+  - {track: book, task: internists, id: "ONCO_CANCER_PAIN_01", domain: palliative, rank: 31, difficulty: 0.729}
+  - {track: book, task: psy, id: "SCZ_P1", domain: schizophrenia, rank: 32, difficulty: 0.729}
+  - {track: book, task: psy, id: "BIP_P1", domain: bipolar, rank: 33, difficulty: 0.729}
+  - {track: book, task: internists, id: "AKI_CAUSE_01", domain: renal, rank: 34, difficulty: 0.729}
+  - {track: book, task: internists, id: "WOME_MENO_01", domain: womens_health, rank: 35, difficulty: 0.729}
+  - {track: book, task: internists, id: "GERI_POLY_01", domain: geriatrics, rank: 36, difficulty: 0.729}
+  - {track: book, task: internists, id: "GL_HTN_01", domain: cardiology, rank: 37, difficulty: 1.0}
+  - {track: book, task: psy, id: "PD_BPD_D1", domain: personality, rank: 38, difficulty: 0.729}
+  - {track: book, task: psy, id: "DEP_MDD_D1", domain: depressive, rank: 39, difficulty: 0.847}
+  - {track: book, task: psy, id: "NCD_DELIRIUM_P1", domain: neurocognitive, rank: 40, difficulty: 0.729}
+  - {track: book, task: internists, id: "OA_DAILY_01", domain: rheumatology, rank: 41, difficulty: 0.847}
+  - {track: book, task: psy, id: "SUB_ALC_P1", domain: substance, rank: 42, difficulty: 0.729}
+  - {track: book, task: internists, id: "BILI_DIET_01", domain: digestive, rank: 43, difficulty: 0.847}
+  - {track: book, task: internists, id: "RESP_CRITICAL_01", domain: respiratory, rank: 44, difficulty: 0.847}
+  - {track: book, task: internists, id: "RHEU_GOUT_02", domain: endocrine, rank: 45, difficulty: 0.847}
+  - {track: book, task: internists, id: "HIV_TREAT_01", domain: infectious, rank: 46, difficulty: 0.847}
+  - {track: medbench, task: MedDefend, id: 92, domain: null, rank: 47, difficulty: 0.873}
+  - {track: book, task: internists, id: "NEURO_STROKE_01", domain: neurology, rank: 48, difficulty: 0.847}
+  - {track: book, task: internists, id: "PE_ANTICOAG_01", domain: hematology, rank: 49, difficulty: 0.847}
+  - {track: book, task: psy, id: "ND_ADHD_P1", domain: neurodevelopmental, rank: 50, difficulty: 0.508}
+  - {track: book, task: internists, id: "CARD_HTN_01", domain: cardiology, rank: 51, difficulty: 0.847}
+  - {track: book, task: psy, id: "EAT_AN_P1", domain: feeding_eating, rank: 52, difficulty: 0.847}
+  - {track: book, task: internists, id: "ILD_BREATHLESS_01", domain: respiratory, rank: 53, difficulty: 0.847}
+  - {track: book, task: psy, id: "MED_NMS_P1", domain: med_induced, rank: 54, difficulty: 0.847}
+  - {track: medbench, task: MedDefend, id: 104, domain: null, rank: 55, difficulty: 0.805}
+  - {track: book, task: internists, id: "RHEUM_SPA_01", domain: rheumatology, rank: 56, difficulty: 0.847}
+  - {track: book, task: internists, id: "CARD_OTHER_01", domain: cardiology, rank: 57, difficulty: 0.847}
+  - {track: book, task: psy, id: "TRA_PTSD_D1", domain: trauma, rank: 58, difficulty: 0.847}
+  - {track: medbench, task: MedDefend, id: 107, domain: null, rank: 59, difficulty: 0.855}
+  - {track: book, task: internists, id: "ELECTRO_HYPERK_01", domain: renal, rank: 60, difficulty: 0.729}
+  - {track: book, task: internists, id: "DIGE_JAUNDICE_01", domain: digestive, rank: 61, difficulty: 0.847}
+  - {track: book, task: psy, id: "PAR_D1", domain: paraphilic, rank: 62, difficulty: 0.508}
+  - {track: book, task: internists, id: "NEURO_MOV_02", domain: neurology, rank: 63, difficulty: 0.729}
+  - {track: book, task: internists, id: "CARD_CHD_01", domain: cardiology, rank: 64, difficulty: 0.847}
+  - {track: book, task: internists, id: "SUBS_ALC_02", domain: substance_use, rank: 65, difficulty: 0.729}
+  - {track: book, task: internists, id: "INF_IMMUNO_01", domain: infectious, rank: 66, difficulty: 0.729}
+  - {track: book, task: psy, id: "ELIM_ENU_P1", domain: elimination, rank: 67, difficulty: 0.39}
+  - {track: book, task: psy, id: "DIS_DPDR_P1", domain: dissociative, rank: 68, difficulty: 0.39}
+  - {track: book, task: internists, id: "RHEU_RA_02", domain: rheumatology, rank: 69, difficulty: 0.729}
+  - {track: book, task: internists, id: "LYMPHOMA_SIGN_01", domain: hematology, rank: 70, difficulty: 0.729}
+  - {track: book, task: internists, id: "RHEU_GOUT_01", domain: endocrine, rank: 71, difficulty: 0.847}
+  - {track: book, task: internists, id: "NEURO_STROKE_02", domain: neurology, rank: 72, difficulty: 0.729}
+  - {track: book, task: internists, id: "MOL_BASIS_01", domain: molecular, rank: 73, difficulty: 0.39}
+  - {track: book, task: internists, id: "HIV_DAILY_01", domain: infectious, rank: 74, difficulty: 0.847}
+  - {track: book, task: psy, id: "BIP_D1", domain: bipolar, rank: 75, difficulty: 0.729}
+  - {track: book, task: psy, id: "SEX_ED_P1", domain: sexual_dysfunction, rank: 76, difficulty: 0.39}
+  - {track: book, task: psy, id: "SOM_ILL_P1", domain: somatic, rank: 77, difficulty: 0.39}
+  - {track: book, task: psy, id: "SLEEP_INS_P1", domain: sleep_wake, rank: 78, difficulty: 0.39}
+  - {track: book, task: psy, id: "DISR_CONDUCT_P1", domain: disruptive, rank: 79, difficulty: 0.39}
+  - {track: book, task: psy, id: "OCD_P1", domain: ocd, rank: 80, difficulty: 0.39}
+  - {track: book, task: psy, id: "PD_BPD_P1", domain: personality, rank: 81, difficulty: 0.729}
+  - {track: book, task: internists, id: "ILD_DAILY_01", domain: respiratory, rank: 82, difficulty: 0.847}
+  - {track: book, task: internists, id: "RENAL_CKD_02", domain: renal, rank: 83, difficulty: 0.729}
+  - {track: book, task: internists, id: "DIGE_LIVER_02", domain: digestive, rank: 84, difficulty: 0.729}
+  - {track: book, task: internists, id: "LYMPHOMA_FAMILY_01", domain: hematology, rank: 85, difficulty: 0.847}
+  - {track: book, task: psy, id: "DEP_MDD_P2", domain: depressive, rank: 86, difficulty: 0.729}
+  - {track: book, task: internists, id: "NEURO_DEM_02", domain: neurology, rank: 87, difficulty: 0.729}
+  - {track: book, task: internists, id: "BONE_OSTEO_01", domain: rheumatology, rank: 88, difficulty: 0.729}
+  - {track: book, task: internists, id: "UTI_RECUR_01", domain: infectious, rank: 89, difficulty: 0.847}
+  - {track: book, task: internists, id: "MENS_BPH_01", domain: mens_health, rank: 90, difficulty: 0.576}
+  - {track: book, task: internists, id: "CARD_CAD_02", domain: cardiology, rank: 91, difficulty: 0.729}
+  - {track: book, task: internists, id: "ELECTRO_HYPONAT_01", domain: renal, rank: 92, difficulty: 0.729}
+  - {track: book, task: internists, id: "ENDO_DM_02", domain: endocrine, rank: 93, difficulty: 0.729}
+  - {track: book, task: internists, id: "RESP_COPD_02", domain: respiratory, rank: 94, difficulty: 0.729}
+  - {track: medbench, task: MedDefend, id: 140, domain: null, rank: 95, difficulty: 0.615}
+  - {track: medbench, task: MedCollab, id: 108, domain: null, rank: 96, difficulty: 0.612}
+  - {track: book, task: internists, id: "UTI_SERIOUS_01", domain: infectious, rank: 97, difficulty: 0.729}
+  - {track: medbench, task: MedShield, id: 127, domain: null, rank: 98, difficulty: 0.479}
+  - {track: book, task: internists, id: "DIGE_GI_02", domain: digestive, rank: 99, difficulty: 0.729}
+  - {track: book, task: internists, id: "CARD_HTN_04", domain: cardiology, rank: 100, difficulty: 0.729}

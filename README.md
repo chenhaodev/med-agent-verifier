@@ -190,6 +190,7 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 
 | 参数 | 含义 |
 |------|------|
+| `--subset mini \| medium \| large` | 用分层 mini-bench 子集（见下） |
 | `--track book \| medbench \| both` | 选哪路 gold（默认 `both`） |
 | `--task T1,T2` | 指定任务（`MedCOT…` 或诚信卷的 `internists` / `psy`） |
 | `--domain S1,S2` | 指定专科（**仅 Track B**，如 `cardiology`；会排除全部 Track A 并提示） |
@@ -201,6 +202,32 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 | `--judge-model M` | 判官模型（默认 DeepSeek） |
 | `--concurrency N` | 并发（**默认 1**：本地 GPU 串行，>1 易触发排队超时） |
 | `--cache` | 生成与判分走缓存（快速迭代；默认不走，度量新鲜质量） |
+
+---
+
+## 分层 mini-bench（极致小卷 → 全量）
+
+不必每次都跑全量。三档**嵌套**子集（`mini ⊂ medium ⊂ large`），冻结在 `eval/subsets/*.yaml`，
+作为可复现基准：
+
+| 档 | 题数 | 选题原则 |
+|------|:---:|------|
+| **mini** | 30 | **最难 + 最正交**：硬覆盖全部 **12 项 MedBench 能力**（每能力取最难一条）+ 17 个互不相同的专科 |
+| **medium** | 100 | 同法扩展，覆盖到约 36 个专科 |
+| **large** | 全量 | 当前所有记录（动态，随 gold 增长） |
+
+```bash
+./bin/eval.sh --subset mini --model qwen3.5        # 30 题极致小卷，快速摸底
+./bin/eval.sh --subset medium --model qwen3.5      # 100 题
+python3 bin/select_subset.py                       # （重新）生成三档清单；gold 变动后刷新
+```
+
+**怎么挑的**（`bin/select_subset.py`）：把两路全部记录排成一个 **MMR 排名**，三档取前缀——
+
+- **最难**：零模型的确定性难度启发式（对抗/安全/反思类任务更难、覆盖要点多、带安全警示或幻觉陷阱、指南时效题）。
+- **最正交**：用本地 `nomic-embed-text` 给每题求句向量（官方 Ollama，`bin/call_embed.sh`，带缓存），
+  贪心选「到已选集语义距离最大」的题；并叠加**结构新颖度**（新能力/新专科优先），避免把整卷灌成同一个任务。
+- 每步打分 `λ·难度 + (1-λ)·正交`，`--lambda` 可调（大偏难、小偏正交）；`--no-embed` 退化为纯结构化分桶。
 
 ---
 
@@ -232,6 +259,8 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 bin/            管线脚本（Bash 编排 + Python 数据活）
                 ├─ load_dataset.py      两路 gold → 统一化记录（gold_type 分流）+ 可控子集过滤
                 ├─ call_ollama.sh       候选：官方 Ollama REST（curl POST /api/generate）+ --think + sha256 缓存
+                ├─ call_embed.sh        句向量：官方 Ollama embeddings（curl）+ sha256 缓存（供选题用）
+                ├─ select_subset.py     生成分层 mini-bench（难度启发式 + 句向量 MMR）→ eval/subsets/*.yaml
                 ├─ run_candidate.sh     候选薄封装（raw question only）
                 ├─ call_judge.sh        判官：DeepSeek API + 指数退避重试 + sha256 缓存
                 ├─ parse_judge.py       稳健解析判官四维分（严格→修复→正则兜底→重跑）
@@ -239,7 +268,8 @@ bin/            管线脚本（Bash 编排 + Python 数据活）
                 ├─ eval_worker.sh       单题 E2E：作答 → 幻觉检查 → 判分 → 拼结果行
                 └─ check.sh / smoke.sh  静态门禁 + E2E 冒烟（候选侧，零判官预算）
 eval/           judge_prompt.md（Track B）· judge_prompt_reference.md（Track A）
-                · task_registry.yaml（任务→指标→规约）· subsets/（命名子集，Phase 2）· results/（结果，git 忽略）
+                · task_registry.yaml（任务→指标→规约）· subsets/{mini,medium,large}.yaml（分层子集，已生成）
+                · results/（结果，git 忽略）
 medbench-agent-95/   Track A 数据：12 个任务的 .jsonl（30 题/个）+ .md 任务规约
 .env.example    判官密钥（DEEPSEEK_*）+ 候选配置（OLLAMA_HOST/MODEL/TIMEOUT/THINK）
 ```

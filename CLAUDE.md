@@ -32,15 +32,21 @@ ruff check bin/*.py                       # lint: line-length 99, select E/F/I
 ./bin/check.sh                            # static gates: registry coverage + both gold load + Ollama smoke (no judge budget)
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
 ./bin/eval.sh --track both --sample 3 --model qwen3.5                  # run: candidate (Ollama) → halluc check → judge (DeepSeek) → 0–40
+./bin/eval.sh --subset mini --model qwen3.5                            # 30-question tiered mini-bench (hardest + most orthogonal)
 ./bin/eval.sh --track book --domain cardiology --limit 3 --model qwen3.5   # Track B slice: per-specialty + hallucination rate
-./bin/eval.sh --track medbench --task MedShield --limit 3 --model qwen3.5  # Track A slice: reference-based capability
+python3 bin/select_subset.py                                          # (re)generate eval/subsets/{mini,medium,large}.yaml
 ```
 
 Candidate concurrency defaults to **1** (Ollama serializes; >1 trips curl timeout via queue wait). `--think
-on|off` toggles a reasoning candidate's think-trace. **Phase 2/3 (not yet built):** structured-task judge
-overrides (CallAPI/RetAPI/DBOps), crisis/OOB safety-interception recall, MedEthics accuracy path
-(`bin/parse_choice.py`; no jsonl yet — see `eval/task_registry.yaml` `pending:`), named subset manifests
-`eval/subsets/*.yaml`, multi-model leaderboard.
+on|off` toggles a reasoning candidate's think-trace. **Tiered mini-bench** (`bin/select_subset.py`): one MMR
+ranking → nested `mini`(30) ⊂ `medium`(100) ⊂ `large`(all), frozen in `eval/subsets/*.yaml`; "hardest" =
+model-free difficulty heuristic, "most orthogonal" = `nomic-embed-text` embeddings (official Ollama, via
+`bin/call_embed.sh`) + structural-novelty MMR, with all 12 MedBench capabilities guaranteed in `mini`.
+Regenerate after the siblings grow.
+
+**Phase 2/3 (not yet built):** structured-task judge overrides (CallAPI/RetAPI/DBOps), crisis/OOB
+safety-interception recall, MedEthics accuracy path (`bin/parse_choice.py`; no jsonl yet — see
+`eval/task_registry.yaml` `pending:`), multi-model leaderboard.
 
 ## The reference dataset: `medbench-agent-95/`
 
