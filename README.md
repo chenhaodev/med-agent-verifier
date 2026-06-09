@@ -222,12 +222,13 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 python3 bin/select_subset.py                       # （重新）生成三档清单；gold 变动后刷新
 ```
 
-**怎么挑的**（`bin/select_subset.py`）：把两路全部记录排成一个 **MMR 排名**，三档取前缀——
+**怎么挑的**（`bin/select_subset.py`，**纯确定性、零外部依赖**）：把两路全部记录排成一个排名，三档取前缀——
 
 - **最难**：零模型的确定性难度启发式（对抗/安全/反思类任务更难、覆盖要点多、带安全警示或幻觉陷阱、指南时效题）。
-- **最正交**：用本地 `nomic-embed-text` 给每题求句向量（官方 Ollama，`bin/call_embed.sh`，带缓存），
-  贪心选「到已选集语义距离最大」的题；并叠加**结构新颖度**（新能力/新专科优先），避免把整卷灌成同一个任务。
-- 每步打分 `λ·难度 + (1-λ)·正交`，`--lambda` 可调（大偏难、小偏正交）；`--no-embed` 退化为纯结构化分桶。
+- **最正交**：按 `(track, task, domain)` 分桶（= 12 能力轴 × 37 专科轴，两路各自设计上的正交维度），
+  桶内按难度降序、桶间按桶内最高难度降序，**逐桶轮询取一**——先把所有能力/专科铺开一遍再回头加深，
+  天然避免把整卷灌成同一个任务/专科。
+- 再叠加**硬覆盖**：MedBench 12 项能力各取最难一条置顶，保证 mini 必含全部能力（`--no-cover` 可关）。
 
 ---
 
@@ -259,8 +260,7 @@ python3 bin/select_subset.py                       # （重新）生成三档清
 bin/            管线脚本（Bash 编排 + Python 数据活）
                 ├─ load_dataset.py      两路 gold → 统一化记录（gold_type 分流）+ 可控子集过滤
                 ├─ call_ollama.sh       候选：官方 Ollama REST（curl POST /api/generate）+ --think + sha256 缓存
-                ├─ call_embed.sh        句向量：官方 Ollama embeddings（curl）+ sha256 缓存（供选题用）
-                ├─ select_subset.py     生成分层 mini-bench（难度启发式 + 句向量 MMR）→ eval/subsets/*.yaml
+                ├─ select_subset.py     生成分层 mini-bench（难度启发式 + 分桶轮询，纯确定性）→ eval/subsets/*.yaml
                 ├─ run_candidate.sh     候选薄封装（raw question only）
                 ├─ call_judge.sh        判官：DeepSeek API + 指数退避重试 + sha256 缓存
                 ├─ parse_judge.py       稳健解析判官四维分（严格→修复→正则兜底→重跑）

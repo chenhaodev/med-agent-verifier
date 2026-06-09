@@ -2,9 +2,7 @@
 name: large
 description: 全量（嵌套 mini⊂medium⊂large）
 selection:
-  method: embed-mmr
-  lambda: 0.5
-  embed_model: nomic-embed-text
+  method: structural（难度启发式 + 分桶轮询 + 12能力硬覆盖）
   generated: 2026-06-10
   source_counts: {medbench: 360, book: 235}
 all: true

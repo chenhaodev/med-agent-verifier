@@ -38,11 +38,11 @@ python3 bin/select_subset.py                                          # (re)gene
 ```
 
 Candidate concurrency defaults to **1** (Ollama serializes; >1 trips curl timeout via queue wait). `--think
-on|off` toggles a reasoning candidate's think-trace. **Tiered mini-bench** (`bin/select_subset.py`): one MMR
-ranking → nested `mini`(30) ⊂ `medium`(100) ⊂ `large`(all), frozen in `eval/subsets/*.yaml`; "hardest" =
-model-free difficulty heuristic, "most orthogonal" = `nomic-embed-text` embeddings (official Ollama, via
-`bin/call_embed.sh`) + structural-novelty MMR, with all 12 MedBench capabilities guaranteed in `mini`.
-Regenerate after the siblings grow.
+on|off` toggles a reasoning candidate's think-trace. **Tiered mini-bench** (`bin/select_subset.py`, **pure
+deterministic, no external deps**): one ranking → nested `mini`(30) ⊂ `medium`(100) ⊂ `large`(all sentinel),
+frozen in `eval/subsets/*.yaml`; "hardest" = model-free difficulty heuristic, "most orthogonal" =
+`(track,task,domain)`-bucket round-robin (capability × specialty axes), with all 12 MedBench capabilities
+guaranteed in `mini`. Regenerate after the siblings grow.
 
 **Phase 2/3 (not yet built):** structured-task judge overrides (CallAPI/RetAPI/DBOps), crisis/OOB
 safety-interception recall, MedEthics accuracy path (`bin/parse_choice.py`; no jsonl yet — see
