@@ -82,26 +82,31 @@ LOADER_ARGS=(--track "$TRACK")
 [[ -n "$LIMIT" ]]     && LOADER_ARGS+=(--limit "$LIMIT")
 [[ -n "$SAMPLE" ]]    && LOADER_ARGS+=(--sample "$SAMPLE")
 
-TOTAL=$(python3 "$SCRIPT_DIR/load_dataset.py" "${LOADER_ARGS[@]}" \
-  | tee "$WORKDIR/records.jsonl" | wc -l | tr -d ' ')
+python3 "$SCRIPT_DIR/load_dataset.py" "${LOADER_ARGS[@]}" > "$WORKDIR/records.jsonl"
+
+# 拆成逐条 q_NNNN.json，并让拆分器成为「条数唯一真相源」：仅对非空行用**连续计数器** n
+# 命名 q_{n}，最后打印 n。这样 q 文件下标恒为 0..TOTAL-1 连续，与 dispatcher 的
+# seq 0..TOTAL-1 严格对齐——杜绝 wc -l 与 enumerate 因空行/无尾换行而错位丢记录。
+TOTAL=$(python3 - "$WORKDIR" <<'PYEOF'
+import os, sys
+workdir = sys.argv[1]
+n = 0
+with open(os.path.join(workdir, "records.jsonl"), encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        with open(os.path.join(workdir, f"q_{n:04d}.json"), "w", encoding="utf-8") as out:
+            out.write(line)
+        n += 1
+print(n)
+PYEOF
+)
 
 if [[ "$TOTAL" -eq 0 ]]; then
   echo "没有符合条件的记录，退出。" >&2
   exit 0
 fi
-
-# 拆成逐条 q_NNNN.json（worker 每条只读自己的输入）
-python3 - "$WORKDIR" <<'PYEOF'
-import json, os, sys
-workdir = sys.argv[1]
-with open(os.path.join(workdir, "records.jsonl"), encoding="utf-8") as f:
-    for i, line in enumerate(f):
-        line = line.strip()
-        if not line:
-            continue
-        with open(os.path.join(workdir, f"q_{i:04d}.json"), "w", encoding="utf-8") as out:
-            out.write(line)
-PYEOF
 
 echo "记录总数：$TOTAL  |  并发：$EVAL_CONCURRENCY  |  生成缓存：$([[ "$EVAL_NO_CACHE" == "0" ]] && echo 开 || echo 关)"
 echo ""
@@ -177,12 +182,27 @@ task_table = {
     for t, rs in sorted(by_task.items())
 }
 
+# 每 track 均分：A(reference) 与 B(criteria) 用不同 judge 规约/标度，混在一个 headline
+# 均分里不可比；故当一次跑同时含两路时，分轨各报一份，避免顶线数字随过滤构成漂移。
+by_track = defaultdict(list)
+for r in scored:
+    by_track[r.get("track")].append(r)
+track_table = {
+    tk: {
+        "n": len(rs),
+        **{k: round(sum(x["scores"][k] for x in rs) / len(rs), 1)
+           for k in ("coverage", "accuracy", "safety", "grounding", "total")},
+    }
+    for tk, rs in sorted(by_track.items())
+}
+
 summary = {
     "timestamp": ts, "track": track, "model": model, "judge_model": judge_model,
     "total": total, "evaluated": evaluated, "errors": errors,
     "passed": passed, "pass_rate_pct": pass_rate,
     "hallucinated": halluc, "hallucination_rate_pct": halluc_rate,
     "avg_scores": {k: avg(k) for k in ("coverage", "accuracy", "safety", "grounding", "total")},
+    "by_track": track_table,
     "by_domain": domain_table,
     "by_task": task_table,
 }
@@ -194,9 +214,15 @@ print(f" Eval 汇总 — {ts}  track={track}  model={model}")
 print("════════════════════════════════════════════")
 print(f" 记录：{total}  有效评分：{n}  错误：{errors}")
 print(f" 通过：{passed}  通过率：{pass_rate}%")
-print(f" 四维均分  C:{avg('coverage')} A:{avg('accuracy')} S:{avg('safety')} G:{avg('grounding')}  → 综合 {avg('total')}/40")
+if len(track_table) > 1:
+    # 混合跑：分轨报均分（A/B 标度不可比），不报一个混合 headline
+    print(" 分轨均分（A=reference / B=criteria，标度不可比，勿合并比较）：")
+    for tk, v in track_table.items():
+        print(f"   {tk:<9} n={v['n']:<3} C:{v['coverage']} A:{v['accuracy']} S:{v['safety']} G:{v['grounding']}  → {v['total']}/40")
+else:
+    print(f" 四维均分  C:{avg('coverage')} A:{avg('accuracy')} S:{avg('safety')} G:{avg('grounding')}  → 综合 {avg('total')}/40")
 if track in ("book", "both") and any(r.get("gold_type") == "criteria" for r in scored):
-    print(f" 幻觉率（确定性 must_not 命中）：{halluc_rate}%  （{halluc}/{n}）")
+    print(f" 幻觉率（确定性 patient_must_not_phrases 命中）：{halluc_rate}%  （{halluc}/{n}）")
 if domain_table:
     print("\n 每专科（Track B）：")
     for d, v in domain_table.items():

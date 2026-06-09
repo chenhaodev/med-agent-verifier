@@ -13,7 +13,8 @@
 #
 # 产出：把单条 RESULT_ROW JSON 写入 <输出文件路径>，并打印一行进度到 stdout。
 # 设计：并发安全（仅写自己的输出文件，无共享可变状态）。
-#   Track B：先做确定性幻觉检查（must_not / patient_must_not_phrases 字符串命中，零 API），
+#   Track B：先做确定性幻觉检查（仅 patient_must_not_phrases 字面串命中，零 API；
+#            must_not 为描述性，交判官语义评判），
 #            按 judge_prompt.md criteria 评判；
 #   Track A：按 judge_prompt_reference.md，把 95 分参考答案一并喂给 judge。
 
@@ -27,9 +28,15 @@ OUT_FILE="${1:?用法：eval_worker.sh <输出文件路径>}"
 : "${OLLAMA_MODEL:?缺少 OLLAMA_MODEL}"
 : "${JUDGE_MODEL:?缺少 JUDGE_MODEL}"
 EVAL_NO_CACHE="${EVAL_NO_CACHE:-1}"
+OLLAMA_THINK="${OLLAMA_THINK:-}"   # 由 eval.sh 导出；空=模型默认
 
 CACHE_ARGS=()
 [[ "$EVAL_NO_CACHE" == "1" ]] && CACHE_ARGS=(--no-cache)
+
+# 把 --think 作为显式参数转发给候选（而非仅靠 env：call_ollama 会 source .env，
+# 可能覆盖继承来的 OLLAMA_THINK；显式 flag 在 source 之后解析，必胜）。
+THINK_ARGS=()
+[[ -n "$OLLAMA_THINK" ]] && THINK_ARGS=(--think "$OLLAMA_THINK")
 
 # ─── 1) 解析记录关键字段（一次 python3）──────────────────────────
 _LINE=$(RECORD_OBJ="$RECORD_OBJ" python3 - <<'PYEOF'
@@ -51,7 +58,7 @@ IFS=$'\t' read -r TRACK TASK QID GOLD_TYPE QTEXT <<< "$_LINE"
 # ─── 2) 候选作答（Ollama，raw question only）─────────────────────
 gen() {
   printf '%s' "$QTEXT" | "$SCRIPT_DIR/run_candidate.sh" --model "$OLLAMA_MODEL" \
-    ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"} 2>/dev/null
+    ${THINK_ARGS[@]+"${THINK_ARGS[@]}"} ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"} 2>/dev/null
 }
 
 MODEL_RESPONSE=$(gen) || {
@@ -127,9 +134,16 @@ set +e
 SCORES_JSON=$(printf '%s' "$JUDGE_RESPONSE" | python3 "$SCRIPT_DIR/parse_judge.py"); PARSE_RC=$?
 if [[ $PARSE_RC -ne 0 ]]; then
   JUDGE_RESPONSE=$(judge_call --no-cache) || true
-  SCORES_JSON=$(printf '%s' "$JUDGE_RESPONSE" | python3 "$SCRIPT_DIR/parse_judge.py")
+  SCORES_JSON=$(printf '%s' "$JUDGE_RESPONSE" | python3 "$SCRIPT_DIR/parse_judge.py"); PARSE_RC=$?
 fi
 set -e
+
+# 重跑后仍无法解析 → 记为基础设施错误（从评分池剔除），而非伪 0/40 拉低均分。
+if [[ $PARSE_RC -ne 0 ]]; then
+  printf '[%s/%s] [JUDGE UNPARSEABLE]\n' "$TASK" "$QID"
+  printf '{"track":"%s","task":"%s","id":"%s","error":"judge_unparseable"}\n' "$TRACK" "$TASK" "$QID" > "$OUT_FILE"
+  exit 0
+fi
 
 # ─── 4) 确定性幻觉检查（Track B）+ 拼 RESULT_ROW（一次 python3）──
 export SCORES_JSON
@@ -148,11 +162,14 @@ grd = int(parsed.get("grounding", 0))
 flags = list(parsed.get("flags", []) or [])
 error = parsed.get("error")
 
-# 确定性幻觉检查：仅 Track B（criteria 携带禁止串）。普适、零 API。
+# 确定性幻觉检查：仅 Track B，且只对 **字面禁止串** patient_must_not_phrases 做子串命中
+# （与兄弟项目一致）。must_not 多为「描述」（如"具体降压药名称加剂量"），不是模型会逐字
+# 吐出的字符串，子串匹配几乎不命中且语义错位——故 must_not 仅交给判官语义评判
+# （已在判分 gold 中），不进确定性检查。普适、零 API。
 hallucinated = False
 if r.get("gold_type") == "criteria":
     crit = r.get("criteria", {})
-    forbidden = list(crit.get("must_not", []) or []) + list(crit.get("patient_must_not_phrases", []) or [])
+    forbidden = list(crit.get("patient_must_not_phrases", []) or [])
     hits = [p for p in forbidden if p and p in model_response]
     if hits:
         hallucinated = True

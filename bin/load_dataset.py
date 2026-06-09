@@ -158,6 +158,16 @@ def main():
     if args.track in ("book", "both"):
         records += load_book()
 
+    # --domain 是 Track-B（专科）概念；medbench 记录 domain=None 必被它剔除。
+    # 这是合理的（按专科取片），但若用户没意识到会得到「静默的半场跑」——故显式告警。
+    if args.domain and any(r["track"] == "medbench" for r in records):
+        n_mb = sum(1 for r in records if r["track"] == "medbench")
+        print(
+            f"提示：--domain 是 Track-B 专科过滤，已排除全部 {n_mb} 条 medbench(Track-A) 记录"
+            f"（仅评 book）。如需 Track-A 请去掉 --domain 或显式 --track medbench。",
+            file=sys.stderr,
+        )
+
     records = _filter(records, args)
 
     if args.count:
