@@ -46,7 +46,8 @@ TIERS = [("mini", 30), ("medium", 100), ("large", None)]  # None = 全量
 def _minmax(vals):
     lo, hi = min(vals), max(vals)
     span = hi - lo
-    return [(v - lo) / span if span else 0.0 for v in vals]
+    # span==0（单条或同质轨）→ 返回中性 0.5，而非 0.0：避免把整轨难度抹成「最易」沉底。
+    return [(v - lo) / span if span else 0.5 for v in vals]
 
 
 def _is_guideline(rec):
@@ -156,8 +157,10 @@ def write_manifest(name, limit, order, records, diff, meta):
         lines.append("records:")
         for rank, i in enumerate(recs, 1):
             r = records[i]
+            # 用 json.dumps 引用 id 与 domain：JSON 是 YAML 1.2 子集，确保像 'no'/'on'/'null'
+            # 这类 YAML 保留词或以特殊字符开头的专科 slug 不被 safe_load 误解析/报错。
             rid = json.dumps(r["id"], ensure_ascii=False)
-            dom = r.get("domain") if r.get("domain") else "null"
+            dom = json.dumps(r["domain"], ensure_ascii=False) if r.get("domain") else "null"
             lines.append(
                 f"  - {{track: {r['track']}, task: {r['task']}, id: {rid}, "
                 f"domain: {dom}, rank: {rank}, difficulty: {round(diff[i], 3)}}}"

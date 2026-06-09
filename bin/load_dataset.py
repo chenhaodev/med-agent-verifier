@@ -132,12 +132,17 @@ def _apply_subset(records, name):
     if manifest.get("all"):
         return records
     by_key = {(r["track"], r["task"], str(r["id"])): r for r in records}
+    loaded_tracks = {r["track"] for r in records}
     out, missing = [], []
     for ref in manifest.get("records", []) or []:
+        if not all(k in ref for k in ("track", "task", "id")):  # 文件边界：容错坏 ref
+            print(f"警告：子集 {name} 跳过缺字段的 ref：{ref}", file=sys.stderr)
+            continue
         key = (ref["track"], ref["task"], str(ref["id"]))
         if key in by_key:
             out.append(by_key[key])
-        else:
+        # 只把「轨已加载却仍找不到」算作 gold 漂移；被 --track 过滤掉的轨不算（避免误报）
+        elif ref["track"] in loaded_tracks:
             missing.append(key)
     if missing:
         print(f"警告：子集 {name} 有 {len(missing)} 条 ref 在当前 gold 中找不到"
@@ -154,10 +159,25 @@ def _filter(records, args):
         tasks = {t.strip() for t in args.task.split(",") if t.strip()}
         out = [r for r in out if r["task"] in tasks]
     if args.domain:
+        # --domain 是 Track-B（专科）概念；medbench 记录 domain=None 必被它剔除。合理但易致
+        # 「静默半场跑」——故告警。放在过滤前、子集后，计数才反映本次实际在场的 medbench 数。
+        n_mb = sum(1 for r in out if r["track"] == "medbench")
+        if n_mb:
+            print(
+                f"提示：--domain 是 Track-B 专科过滤，已排除本次 {n_mb} 条 medbench(Track-A) 记录"
+                f"（仅评 book）。如需 Track-A 请去掉 --domain 或显式 --track medbench。",
+                file=sys.stderr,
+            )
         doms = {d.strip() for d in args.domain.split(",") if d.strip()}
         out = [r for r in out if r.get("domain") in doms]
     if args.id:
         out = [r for r in out if str(r.get("id")) == str(args.id)]
+    if args.sample and getattr(args, "subset", None):
+        # --subset 是冻结基准；--sample 会按组重抽、破坏其策划构成（如 mini 含 2 条 MedDefend
+        # 会被砍成 1 条）。二者冲突 → 忽略 --sample，保子集完整。（--limit 保序，仍生效。）
+        print("提示：--subset 与 --sample 冲突，已忽略 --sample（子集为冻结基准，不再按组重抽）。",
+              file=sys.stderr)
+        args.sample = None
     if args.sample:
         seen = {}
         sampled = []
@@ -189,16 +209,6 @@ def main():
         records += load_medbench()
     if args.track in ("book", "both"):
         records += load_book()
-
-    # --domain 是 Track-B（专科）概念；medbench 记录 domain=None 必被它剔除。
-    # 这是合理的（按专科取片），但若用户没意识到会得到「静默的半场跑」——故显式告警。
-    if args.domain and any(r["track"] == "medbench" for r in records):
-        n_mb = sum(1 for r in records if r["track"] == "medbench")
-        print(
-            f"提示：--domain 是 Track-B 专科过滤，已排除全部 {n_mb} 条 medbench(Track-A) 记录"
-            f"（仅评 book）。如需 Track-A 请去掉 --domain 或显式 --track medbench。",
-            file=sys.stderr,
-        )
 
     records = _filter(records, args)
 

@@ -65,12 +65,14 @@ fi
 RESULTS_DIR="$ROOT_DIR/eval/results"
 mkdir -p "$RESULTS_DIR"
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-RESULT_FILE="$RESULTS_DIR/${TIMESTAMP}_${TRACK}.json"
-SUMMARY_FILE="$RESULTS_DIR/${TIMESTAMP}_${TRACK}_summary.txt"
+# 子集名进文件名 → mini/medium/large 跑互不覆盖、可区分
+LABEL="$TRACK"; [[ -n "$SUBSET" ]] && LABEL="${SUBSET}_${TRACK}"
+RESULT_FILE="$RESULTS_DIR/${TIMESTAMP}_${LABEL}.json"
+SUMMARY_FILE="$RESULTS_DIR/${TIMESTAMP}_${LABEL}_summary.txt"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo " med-agent-verifier Eval — $(date '+%Y-%m-%d %H:%M:%S')"
-echo " track=${TRACK}  model=${OLLAMA_MODEL}  think=${OLLAMA_THINK:-default}  judge=${JUDGE_MODEL}"
+echo " track=${TRACK}${SUBSET:+  subset=${SUBSET}}  model=${OLLAMA_MODEL}  think=${OLLAMA_THINK:-default}  judge=${JUDGE_MODEL}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 WORKDIR=$(mktemp -d)
@@ -134,11 +136,12 @@ seq 0 $((TOTAL - 1)) | xargs -P "$EVAL_CONCURRENCY" -n1 "$DISPATCHER"
 
 # ─── 聚合 → results + summary ─────────────────────────────────────
 {
-python3 - "$WORKDIR" "$RESULT_FILE" "$TIMESTAMP" "$TRACK" "$OLLAMA_MODEL" "$JUDGE_MODEL" "$TOTAL" <<'PYEOF'
+python3 - "$WORKDIR" "$RESULT_FILE" "$TIMESTAMP" "$TRACK" "$OLLAMA_MODEL" "$JUDGE_MODEL" "$TOTAL" "$SUBSET" <<'PYEOF'
 import json, glob, sys, os
 from collections import defaultdict
 
 workdir, result_file, ts, track, model, judge_model, total = sys.argv[1:8]
+subset = sys.argv[8] if len(sys.argv) > 8 else ""
 total = int(total)
 
 rows = []
@@ -200,7 +203,7 @@ track_table = {
 }
 
 summary = {
-    "timestamp": ts, "track": track, "model": model, "judge_model": judge_model,
+    "timestamp": ts, "track": track, "subset": subset or None, "model": model, "judge_model": judge_model,
     "total": total, "evaluated": evaluated, "errors": errors,
     "passed": passed, "pass_rate_pct": pass_rate,
     "hallucinated": halluc, "hallucination_rate_pct": halluc_rate,
