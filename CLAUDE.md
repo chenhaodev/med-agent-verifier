@@ -8,19 +8,39 @@ A **medical-capability verifier / evaluation harness** for **local Ollama models
 medical tasks). The goal (`TASK.md`) is to measure how well local models do on medicine, scored against
 two **trusted gold sources**:
 
-1. **Book-distilled "serious" agents** — the sibling projects `../med-agent-internists/` (Cecil internal
-   medicine) and `../med-agent-psy/` (DSM-5 psychiatry). These produce page-traceable, evidence-graded
-   answers and serve as a high-quality reference.
-2. **MedBench Agent leaderboard outputs (95-point run)** — the `medbench-agent-95/` directory: reference
-   question/answer pairs from a top-scoring Agent submission.
+1. **Book-distilled "serious" agents** (Track B, `gold_type=criteria`) — the sibling projects
+   `../med-agent-internists/` (Cecil internal medicine) and `../med-agent-psy/` (DSM-5 psychiatry). These
+   produce page-traceable, evidence-graded answers and serve as a high-quality reference. Read **live**
+   from `../med-agent-*/eval/gold.yaml` (no copy). Current scale: **235 questions** (183 internists +
+   52 psy) over **37 specialties** — counts grow as the siblings evolve, so verify with
+   `python3 bin/load_dataset.py --track book --count`.
+2. **MedBench Agent leaderboard outputs (95-point run)** (Track A, `gold_type=reference`) — the
+   `medbench-agent-95/` directory: reference question/answer pairs from a top-scoring Agent submission.
+   **360 records** (12 tasks × 30).
 
-The open design questions (from `TASK.md`) are still being worked out: **how to build the eval set, what
-the unified data interface standard is, and how to define controllable subsets.** Treat decisions about
-schema and scoring as open until confirmed with the user.
+The core `TASK.md` design questions are now **resolved and implemented (Phase 1)**: the eval set is the two
+gold tracks above; the **unified data interface** is `bin/load_dataset.py` (normalizes both into one record
+discriminated by `gold_type`); **controllable subsets** are `--track/--task/--domain/--id/--limit/--sample`.
 
-**Status: greenfield.** Only `TASK.md` and the `medbench-agent-95/` reference data exist — there is no
-build/lint/test/run tooling yet. When adding pipeline code, follow the sibling convention (see below)
-unless told otherwise.
+**Status: Phase 1 built & verified** — bash-orchestrated, two-track, LLM-as-a-Judge. Layout: `bin/` scripts
++ `eval/` prompts & registry. See `README.md` for the full picture. Key commands:
+
+```bash
+pip install -r requirements.txt          # only pyyaml
+cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
+ruff check bin/*.py                       # lint: line-length 99, select E/F/I
+./bin/check.sh                            # static gates: registry coverage + both gold load + Ollama smoke (no judge budget)
+python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
+./bin/eval.sh --track both --sample 3 --model qwen3.5                  # run: candidate (Ollama) → halluc check → judge (DeepSeek) → 0–40
+./bin/eval.sh --track book --domain cardiology --limit 3 --model qwen3.5   # Track B slice: per-specialty + hallucination rate
+./bin/eval.sh --track medbench --task MedShield --limit 3 --model qwen3.5  # Track A slice: reference-based capability
+```
+
+Candidate concurrency defaults to **1** (Ollama serializes; >1 trips curl timeout via queue wait). `--think
+on|off` toggles a reasoning candidate's think-trace. **Phase 2/3 (not yet built):** structured-task judge
+overrides (CallAPI/RetAPI/DBOps), crisis/OOB safety-interception recall, MedEthics accuracy path
+(`bin/parse_choice.py`; no jsonl yet — see `eval/task_registry.yaml` `pending:`), named subset manifests
+`eval/subsets/*.yaml`, multi-model leaderboard.
 
 ## The reference dataset: `medbench-agent-95/`
 
