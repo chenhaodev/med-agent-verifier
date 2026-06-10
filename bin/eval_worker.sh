@@ -59,12 +59,12 @@ PYEOF
 IFS=$'\t' read -r TRACK TASK QID GOLD_TYPE QTEXT <<< "$_LINE"
 
 # ─── 2) 候选作答（Ollama，raw question only）─────────────────────
-gen() {
+candidate_call() {
   printf '%s' "$QTEXT" | "$SCRIPT_DIR/run_candidate.sh" --model "$OLLAMA_MODEL" \
     ${THINK_ARGS[@]+"${THINK_ARGS[@]}"} ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"} 2>/dev/null
 }
 
-MODEL_RESPONSE=$(gen) || {
+MODEL_RESPONSE=$(candidate_call) || {
   printf '[%s/%s] [OLLAMA ERROR]\n' "$TASK" "$QID"
   printf '{"track":"%s","task":"%s","id":"%s","error":"ollama_error"}\n' "$TRACK" "$TASK" "$QID" > "$OUT_FILE"
   exit 0
@@ -77,7 +77,7 @@ fi
 
 # 过短 → 重试一次（探针的正确回答可能很短，如「无此药」，故探针不触发此重试）
 if [[ "$GOLD_TYPE" != "probe" && ${#MODEL_RESPONSE} -lt 200 ]]; then
-  RETRY=$(gen) || true
+  RETRY=$(candidate_call) || true
   [[ -n "${RETRY// /}" ]] && MODEL_RESPONSE="$RETRY"
 fi
 
