@@ -25,13 +25,13 @@ import sys
 import yaml
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(SCRIPT_DIR)
+ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 import parse_hallu  # noqa: E402
 
-GOLD_FILE = os.path.join(ROOT, "eval", "calibration", "hallu_gold.yaml")
-HALLU_PROMPT = os.path.join(ROOT, "eval", "judge_prompt_hallu.md")
-REPORT_JSON = os.path.join(ROOT, "eval", "calibration", "last_report.json")
+GOLD_FILE = os.path.join(ROOT_DIR, "eval", "calibration", "hallu_gold.yaml")
+HALLU_PROMPT = os.path.join(ROOT_DIR, "eval", "judge_prompt_hallu.md")
+REPORT_JSON = os.path.join(ROOT_DIR, "eval", "calibration", "last_report.json")
 LABELS = ("supported", "unsupported", "not_sure")
 
 
@@ -40,7 +40,7 @@ def _judge_model():
     for k in ("JUDGE_MODEL", "DEEPSEEK_MODEL"):
         if os.environ.get(k):
             return os.environ[k]
-    env = os.path.join(ROOT, ".env")
+    env = os.path.join(ROOT_DIR, ".env")
     if os.path.exists(env):
         with open(env, encoding="utf-8") as f:
             for line in f:

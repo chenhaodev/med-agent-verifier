@@ -21,16 +21,16 @@ import subprocess
 import sys
 from collections import defaultdict
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, SCRIPT_DIR)
 from specialty_map import broad_area, system_of  # noqa: E402
-
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def load_book_records():
     """跑 load_dataset.py --track book，返回归一化记录列表（单一真相源，避免重复解析 gold）。"""
     out = subprocess.run(
-        [sys.executable, os.path.join(ROOT, "bin", "load_dataset.py"), "--track", "book"],
+        [sys.executable, os.path.join(ROOT_DIR, "bin", "load_dataset.py"), "--track", "book"],
         capture_output=True, text=True, check=True,
     ).stdout
     records = []
