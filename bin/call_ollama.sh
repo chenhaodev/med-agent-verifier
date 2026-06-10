@@ -5,7 +5,7 @@
 #
 # 思考开关（DUT thinking）：--think on|off（或 OLLAMA_THINK=on|off）。
 #   设为 on/off 时在 payload 注入 "think": true/false（Ollama 原生字段，对推理模型如 qwen3.5 生效）；
-#   不设则省略该字段，用模型默认。off 可把 qwen3.5 从 ~147s/条 提到 ~15s/条（代价：欠测推理类任务）。
+#   不设则省略该字段，用模型默认。off 可把 qwen3.5 从 ~147s/条 提到 ~46s/条（实测 Track B 真题；代价：欠测推理类任务）。
 #   注意：对不支持思考的模型传 think 可能报错——故默认省略，仅显式设置时才注入。
 #
 # 响应缓存（默认开，对齐 call_judge.sh 行为）：
