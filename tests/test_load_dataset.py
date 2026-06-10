@@ -20,20 +20,18 @@ class TestBookSources(unittest.TestCase):
         orig_dir = load_dataset.VENDORED_BOOK_DIR
         orig_sib = dict(load_dataset.SIBLING_BOOK)
         try:
-            with tempfile.TemporaryDirectory() as empty, tempfile.NamedTemporaryFile(
-                suffix=".yaml", delete=False
-            ) as sib:
-                sib.write(b"questions: []\n")
-                sib_path = sib.name
-            load_dataset.VENDORED_BOOK_DIR = empty  # 无 vendored
-            load_dataset.SIBLING_BOOK = {"internists": sib_path, "psy": "/nonexistent.yaml"}
-            srcs = dict(load_dataset.book_sources())
-            self.assertEqual(srcs.get("internists"), sib_path)  # 回退到兄弟
-            self.assertNotIn("psy", srcs)  # 兄弟也缺 → 不返回
+            with tempfile.TemporaryDirectory() as empty:
+                sib_path = os.path.join(empty, "sibling.yaml")
+                with open(sib_path, "w", encoding="utf-8") as f:
+                    f.write("questions: []\n")
+                load_dataset.VENDORED_BOOK_DIR = empty  # 存在但无 .yaml → 视作无 vendored
+                load_dataset.SIBLING_BOOK = {"internists": sib_path, "psy": "/nonexistent.yaml"}
+                srcs = dict(load_dataset.book_sources())
+                self.assertEqual(srcs.get("internists"), sib_path)  # 回退到兄弟
+                self.assertNotIn("psy", srcs)  # 兄弟也缺 → 不返回
         finally:
             load_dataset.VENDORED_BOOK_DIR = orig_dir
             load_dataset.SIBLING_BOOK = orig_sib
-            os.unlink(sib_path)
 
 
 class TestNormalization(unittest.TestCase):
