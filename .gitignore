@@ -11,3 +11,4 @@ eval/freshness/
 __pycache__/
 *.pyc
 .DS_Store
+.loop/

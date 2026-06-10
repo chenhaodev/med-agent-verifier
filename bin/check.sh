@@ -38,7 +38,8 @@ B=$(python3 "$SCRIPT_DIR/load_dataset.py" --track book --count 2>/dev/null || ec
 
 # 3) judge 资产存在（含 TASK2 新增的 probe/TIA/freshness rubric）
 for f in eval/judge_prompt.md eval/judge_prompt_reference.md eval/judge_prompt_probe.md \
-         eval/judge_prompt_tia.md eval/judge_prompt_freshness.md bin/parse_judge.py; do
+         eval/judge_prompt_tia.md eval/judge_prompt_freshness.md eval/judge_prompt_hallu.md \
+         bin/parse_judge.py bin/parse_hallu.py; do
   [[ -s "$ROOT_DIR/$f" ]] && pass "$f 存在" || fail "$f 缺失"
 done
 
@@ -50,7 +51,8 @@ else
 fi
 
 # 5) TASK2 特性脚本健全性（零 judge 预算：仅语法/解析/loader）
-for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing parse_choice freshness_audit; do
+for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing parse_choice \
+         freshness_audit parse_hallu specialty_map specialty_report; do
   python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$ROOT_DIR/bin/$s.py" 2>/dev/null \
     && pass "bin/$s.py 语法 ok" || fail "bin/$s.py 语法错误"
 done
@@ -60,6 +62,9 @@ done
 # leaderboard 须能在零/部分数据下解析不崩
 python3 "$SCRIPT_DIR/leaderboard.py" >/dev/null 2>&1 \
   && pass "leaderboard.py 聚合（含零/部分数据）" || fail "leaderboard.py 聚合失败"
+# 专科覆盖盘点须能跑通（顺带验证兄弟 gold 经 load_dataset 可读）
+python3 "$SCRIPT_DIR/specialty_report.py" >/dev/null 2>&1 \
+  && pass "specialty_report.py 专科盘点 ok" || fail "specialty_report.py 失败"
 # 探针/工具决策 loader round-trip（确定性，无 API）
 PB=$(python3 "$SCRIPT_DIR/load_dataset.py" --track probe --count 2>/dev/null || echo -1)
 TD=$(python3 "$SCRIPT_DIR/load_dataset.py" --track tool_decision --count 2>/dev/null || echo -1)

@@ -151,11 +151,34 @@ def _grounding_source(raw):
     return v if v in _GSRC_VALID else None
 
 
+_CTX_VALID = ("appropriate", "overconfident", "overhedged", "na")
+
+
+def _context_awareness(raw):
+    """HealthBench context-awareness 轴（附加标签）：抽取 context_awareness ∈ _CTX_VALID。
+
+    与 grounding_source 同样可加性、最佳努力——取不到返回 None，**不计入 40 分、不影响 ok**。
+    """
+    m = re.search(r'"context_awareness"\s*:\s*"([^"]+)"', raw)
+    if not m:
+        return None
+    v = m.group(1).strip().lower()
+    return v if v in _CTX_VALID else None
+
+
+def _seeks_clarification(raw):
+    """附加布尔：回答是否就关键缺失信息寻求澄清。取不到返回 None。"""
+    m = re.search(r'"seeks_clarification"\s*:\s*(true|false)', raw, re.IGNORECASE)
+    return (m.group(1).lower() == "true") if m else None
+
+
 def parse(raw):
     """返回 (result_dict, ok)。ok=False 表示分数不可信，建议重跑判官。"""
     raw = (raw or "").strip()
     obj_str = _extract_balanced(raw)
     gsrc = _grounding_source(raw)  # E1：可加性，与四维 ok 判定解耦
+    ctx = _context_awareness(raw)  # HealthBench context-awareness：附加，不计入 40
+    seek = _seeks_clarification(raw)
 
     if obj_str:
         normalized = obj_str.replace("\n", " ").replace("\r", " ")
@@ -167,9 +190,16 @@ def parse(raw):
             # 落正则兜底；兜底仍凑不齐则 ok=False，由调用方重跑判官
             # （修 ILD_BREATHLESS 类 A=0 假失败）。
             if all(s is not None for s in strict.values()):
+                _ds = data.get("grounding_source")
+                _dc = data.get("context_awareness")
                 return {
                     **strict,
-                    "grounding_source": gsrc or data.get("grounding_source"),
+                    "grounding_source": gsrc or (_ds if _ds in _GSRC_VALID else None),
+                    "context_awareness": ctx or (_dc if _dc in _CTX_VALID else None),
+                    "seeks_clarification": (
+                        seek if seek is not None
+                        else (data.get("seeks_clarification")
+                              if isinstance(data.get("seeks_clarification"), bool) else None)),
                     "flags": list(data.get("flags", []) or []),
                     "ok": True,
                     "error": None,
@@ -181,6 +211,8 @@ def parse(raw):
         return {
             **scores,
             "grounding_source": gsrc,
+            "context_awareness": ctx,
+            "seeks_clarification": seek,
             "flags": _regex_flags(raw),
             "ok": True,
             "error": None,
@@ -190,6 +222,8 @@ def parse(raw):
     return {
         **scores,
         "grounding_source": gsrc,
+        "context_awareness": ctx,
+        "seeks_clarification": seek,
         "flags": _regex_flags(raw) or [f"判官响应无法解析（仅命中 {hits}/4 维分数）"],
         "ok": False,
         "error": (obj_str or raw)[:200],

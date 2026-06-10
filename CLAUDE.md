@@ -34,8 +34,10 @@ ruff check bin/*.py                       # lint: line-length 99, select E/F/I
 ./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
 ./bin/eval.sh --track both --sample 3 --model qwen3.5                  # run: candidate (Ollama) → halluc check → judge (DeepSeek) → 0–40
+./bin/eval.sh --track book --hallu --sample 3 --model qwen3.5          # + FActScore/HealthBench-Hallu atomic-claim hallucination (claim-level unsupported_rate + factual_precision)
 ./bin/eval.sh --subset mini --model qwen3.5                            # 30-question tiered mini-bench (hardest + most orthogonal)
 python3 bin/select_subset.py                                          # (re)generate eval/subsets/{mini,medium,large}.yaml
+python3 bin/specialty_report.py                                       # judge-free Track B 专科覆盖盘点（内科▸system▸domain / 精神科▸DSM，flags n<5）
 # ── TASK2: leaderboard → routing, orchestrator eval, hallucination probes, live/freshness ──
 python3 bin/gen_probes.py && python3 bin/gen_tool_decision.py         # (re)generate frozen probe sets
 ./bin/eval.sh --track probe --model qwen3.5                           # E: nonexistent + false-premise hallucination probes
@@ -48,9 +50,29 @@ python3 bin/build_routing.py                                         # B: eval/r
 ```
 
 **Three metric families — never blend** (separate scales): ① Capability (Track A, 0–40, per task,
-⚠contamination-risk: public leaderboard data) · ② Specialty (Track B, 0–40, per domain, grounding-based
-`unsupported_rate`) · ③ Orchestration & robustness (Accuracy %: routing, TIA, probes, live). The leaderboard
-keeps these on distinct axes; `routing_manifest.yaml` weights ③ above ① (contamination-resistant).
+⚠contamination-risk: public leaderboard data) · ② Specialty (Track B, 0–40, per domain + **per 科室
+rollup** 内科/精神科, hallucination `unsupported_rate`) · ③ Orchestration & robustness (Accuracy %:
+routing, TIA, probes, live). The leaderboard keeps these on distinct axes; `routing_manifest.yaml`
+weights ③ above ① (contamination-resistant).
+
+**Eval-criteria upgrades (literature-anchored).** The hallucination metric is now optionally measured the
+way the literature does, not just homegrown: with `--hallu`, each Track B/A answer is **decomposed into
+atomic clinical claims, each verified supported/unsupported/not_sure** (FActScore + HealthBench-Hallu
+pattern; MedHallu's `not_sure` abstention class is **not** counted as hallucination). Headline =
+`unsupported_rate = Σunsupported / Σclaims` + `factual_precision` (claim-level; leaderboard prefers it over
+the coarse per-response `grounding_source` binary, tagged `unsupported_metric=claim`). Assets:
+`eval/judge_prompt_hallu.md` + `bin/parse_hallu.py` (rates **recomputed from counts**, judge arithmetic
+distrusted). Default **off** (extra judge call), so `check.sh`/normal runs keep budget. Separately, the
+criteria judge now emits a **HealthBench context-awareness** signal — `context_awareness` ∈
+{appropriate, overconfident, overhedged, na} + `seeks_clarification` — as an **additive label, NOT part of
+the 40** (0–40 scale untouched); surfaced in eval summary + leaderboard diagnostic `ctx_appropriate_rate`.
+
+**Why the repo isn't reorganized by 科室** (unlike `../med-agent-internists`): this is an eval **harness**,
+not a knowledge agent — type-organization (`bin/` scripts + `eval/` prompts/registry) is the correct,
+orthogonal layout. The specialty axis lives in **data + reporting**: Track B `domain` *is* the 科室,
+`routing_manifest.yaml` already routes per-domain (the MoA "specialty→best model"), the leaderboard now
+has a stable 内科/精神科 **rollup** (most domains are n<5 → per-domain is noise), and
+`bin/specialty_report.py` gives a judge-free two-level coverage inventory. See its header for the rationale.
 
 Candidate concurrency defaults to **1** (Ollama serializes; >1 trips curl timeout via queue wait). `--think
 on|off` toggles a reasoning candidate's think-trace. **Tiered mini-bench** (`bin/select_subset.py`, **pure

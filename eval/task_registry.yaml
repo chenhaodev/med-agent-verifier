@@ -64,6 +64,21 @@ robustness:
     generator: gen_probes.py
     capability: 不存在实体拒答（nonexistent）/ 假前提纠偏（false_premise）
 
+# ── 原子声明级幻觉核查（可选叠加，对标文献；eval.sh --hallu 开启）──
+#   把回答拆成原子临床声明→逐条 supported/unsupported/not_sure→claim 级
+#   unsupported_rate + factual_precision。范式：FActScore（原子事实精度）、
+#   HealthBench-Hallu（claim 分解+外部证据）、MedHallu（not_sure 弃权类）。
+#   默认关闭（多一次 judge 调用），故不进 check.sh 预算；开启后写入每行 row.hallu，
+#   leaderboard specialty 族优先用 claim 级率（优于逐答 grounding_source 二元）。
+hallucination:
+  factscore:
+    metric: claim_unsupported_rate   # Σunsupported / Σclaims（语料级）
+    judge_prompt: judge_prompt_hallu.md
+    parser: parse_hallu.py
+    applies_to: [criteria, reference]
+    enable_flag: --hallu
+    capability: 原子声明级事实精度（可引用幻觉率）
+
 # ── gold 时效性审计（只读，不改 gold；兄弟是单一真相源）──
 audit:
   freshness:

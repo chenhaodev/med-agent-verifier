@@ -30,10 +30,14 @@ import math
 import os
 import random
 import re
+import sys
 from collections import defaultdict
 from datetime import date
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+from specialty_map import broad_area  # noqa: E402
+
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RESULTS_DIR = os.path.join(ROOT_DIR, "eval", "results")
 OUT_JSON = os.path.join(ROOT_DIR, "eval", "leaderboard.json")
@@ -200,12 +204,27 @@ def aggregate(by_model, common=False):
                 is_acc = family in ("robustness", "orchestration")
                 cell = _cell(vals, is_acc)
                 if family == "specialty":
-                    # unsupported 率（E1 grounding_source）；缺则回退 hallucinated（过渡期）
                     rows_ = [r for _rid, _v, r in pts]
-                    gs = [r.get("grounding_source") for r in rows_ if r.get("grounding_source")]
-                    if gs:
-                        cell["unsupported_rate"] = round(
-                            sum(1 for g in gs if g == "unsupported") / len(gs), 3)
+                    # 优先：claim 级 unsupported_rate（FActScore/HealthBench-Hallu，--hallu 时有）
+                    # = Σunsupported / Σclaims（语料级，比逐答 grounding_source 二元更细可引用）
+                    hrows = [r for r in rows_ if r.get("hallu")]
+                    if hrows:
+                        tot_claims = sum(r["hallu"]["n_claims"] for r in hrows)
+                        tot_unsup = sum(r["hallu"]["unsupported"] for r in hrows)
+                        tot_sup = sum(r["hallu"]["supported"] for r in hrows)
+                        denom = tot_sup + tot_unsup
+                        if tot_claims:
+                            cell["unsupported_rate"] = round(tot_unsup / tot_claims, 3)
+                            cell["unsupported_metric"] = "claim"   # FActScore 式
+                            cell["factual_precision"] = round(tot_sup / denom, 3) if denom else 1.0
+                    # 回退：逐答 grounding_source 二元（无 --hallu 时的过渡口径）
+                    if "unsupported_rate" not in cell:
+                        gs = [r.get("grounding_source") for r in rows_
+                              if r.get("grounding_source")]
+                        if gs:
+                            cell["unsupported_rate"] = round(
+                                sum(1 for g in gs if g == "unsupported") / len(gs), 3)
+                            cell["unsupported_metric"] = "response"
                     sfv = sum(1 for r in rows_ if r.get("hallucinated"))
                     cell["safety_floor_violation_rate"] = round(sfv / len(rows_), 3)
                 elif family == "capability":
@@ -216,15 +235,52 @@ def aggregate(by_model, common=False):
             if cells:
                 out[family][bucket] = cells
 
+    # 专科汇总（specialty_rollup）：把 specialty 的逐 domain 行按 broad_area（内科/精神科）
+    # 重新归并成稳定大桶。多数 domain n<5（见 specialty_report），逐 domain 分是噪声；
+    # 此 rollup 给「模型在内科 vs 精神科孰强孰弱」一个有足够 n 的一等读数。
+    spec = fam.get("specialty") or {}
+    rollup = defaultdict(lambda: defaultdict(list))  # area → model → [(rid,val,row)]
+    for domain, models in spec.items():
+        for model, pts in models.items():
+            for rid, val, row in pts:
+                area = broad_area(row.get("domain"), row.get("gold_source"))
+                rollup[area][model].append((rid, val, row))
+    out["specialty_rollup"] = {}
+    for area, models in rollup.items():
+        cells = {}
+        for model, pts in models.items():
+            vals = [v for _rid, v, _r in pts]
+            if not vals:
+                continue
+            cell = _cell(vals, is_accuracy=False)
+            rows_ = [r for _rid, _v, r in pts]
+            hrows = [r for r in rows_ if r.get("hallu")]
+            if hrows:
+                tot_claims = sum(r["hallu"]["n_claims"] for r in hrows)
+                tot_unsup = sum(r["hallu"]["unsupported"] for r in hrows)
+                if tot_claims:
+                    cell["unsupported_rate"] = round(tot_unsup / tot_claims, 3)
+                    cell["unsupported_metric"] = "claim"
+            cells[model] = cell
+        if cells:
+            out["specialty_rollup"][area] = cells
+
     diagnostics = {}
     for model in by_model:
         pts = diagnostic_pts[model]
+        # HealthBench context-awareness：appropriate 率（情境觉察得当占比，可靠性信号）
+        ctx = [r.get("context_awareness") for r in by_model[model]
+               if r.get("context_awareness") in ("appropriate", "overconfident", "overhedged")]
+        ctx_appropriate_rate = (
+            round(sum(1 for c in ctx if c == "appropriate") / len(ctx), 3) if ctx else None)
         diagnostics[model] = {
             "n_scored": len(pts["score"]),
             "length_score_corr": _pearson(pts["len"], pts["score"]),
             "judge_models": sorted(judge_models[model]),
             "judge_family_conflict": _family_conflict(model, judge_models[model]),
             "has_contamination_resistant": resistant[model],
+            "ctx_appropriate_rate": ctx_appropriate_rate,
+            "ctx_n": len(ctx),
         }
     return out, diagnostics
 
@@ -250,6 +306,7 @@ def render_md(agg, diagnostics):
         ("capability", "Capability — Track A（每 task，0–40，⚠ 公开榜数据有记忆/污染风险）"),
         ("live", "Live — 抗污染 capability（兄弟现答为参考，每 domain，0–40）"),
         ("specialty", "Specialty — Track B（每 domain，0–40 + unsupported 率）"),
+        ("specialty_rollup", "Specialty 汇总 — 按科室大类（内科/精神科，n 充足的稳定读数）"),
         ("robustness", "Robustness — 探针（false_premise/nonexistent，Accuracy）"),
         ("orchestration", "Orchestration — 编排（routing / TIA，Accuracy）"),
     ]
@@ -277,7 +334,10 @@ def render_md(agg, diagnostics):
                     ci = f"  CI[{c['ci_low']}, {c['ci_high']}]"
                 extra = ""
                 if "unsupported_rate" in c:
-                    extra += f"  unsupported {c['unsupported_rate']:.2f}"
+                    tag = "·claim" if c.get("unsupported_metric") == "claim" else ""
+                    extra += f"  unsupported{tag} {c['unsupported_rate']:.2f}"
+                    if "factual_precision" in c:
+                        extra += f"  factprec {c['factual_precision']:.2f}"
                 if "safety_floor_violation_rate" in c:
                     extra += f"  safety⚑ {c['safety_floor_violation_rate']:.2f}"
                 if "pass_rate" in c:
@@ -292,7 +352,10 @@ def render_md(agg, diagnostics):
         warn = " ⚠长度偏置" if corr is not None and abs(corr) >= 0.5 else ""
         conflict = " ⚠self-preference" if d["judge_family_conflict"] else ""
         resist = "" if d["has_contamination_resistant"] else " ⚠仅静态榜数据"
-        lines.append(f"- {model:<26} n={d['n_scored']:<3} r={corr}{warn}{conflict}{resist}")
+        ctx = ""
+        if d.get("ctx_appropriate_rate") is not None:
+            ctx = f"  ctx-appropriate {d['ctx_appropriate_rate']:.2f}(n={d['ctx_n']})"
+        lines.append(f"- {model:<26} n={d['n_scored']:<3} r={corr}{warn}{conflict}{resist}{ctx}")
     lines.append("")
     return "\n".join(lines)
 

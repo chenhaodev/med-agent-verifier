@@ -270,6 +270,10 @@ python3 bin/build_routing.py       # top-k/桶 + CI 重叠并列 + orchestrator 
 python3 bin/gen_probes.py          # 冻结探针集（nonexistent=verified；false_premise=needs_review）
 ./bin/eval.sh --track probe --model qwen3.5
 
+# E2·原子声明级幻觉（对标文献：FActScore / HealthBench-Hallu）：把回答拆成原子临床声明逐条核查
+./bin/eval.sh --track book --hallu --model qwen3.5    # → claim 级 unsupported_rate + factual_precision（not_sure 弃权不计幻觉）
+python3 bin/specialty_report.py                       # 专科覆盖盘点（judge-free，零预算）：内科▸system▸domain / 精神科▸DSM
+
 # F·编排能力（MoA 主模型技能）：选择科室 + 是否调用工具
 python3 bin/eval_routing.py --model qwen3.5                 # 专科路由准确率（judge-free，零 DeepSeek）
 python3 bin/gen_tool_decision.py && ./bin/eval.sh --track tool_decision --model qwen3.5   # TIA 对称计分
@@ -282,9 +286,17 @@ echo "我爸有高血压，平时饮食要注意什么？" | ./bin/eval_live.sh 
 ```
 
 **三个度量族，互不可比，永不合并**：① 能力（Track A，0–40/任务，⚠公开榜数据有污染风险）·
-② 专科（Track B，0–40/专科，溯源型 `unsupported_rate` 取代旧黑名单幻觉率，旧黑名单降级为硬安全地板）·
+② 专科（Track B，0–40/**专科 + 内科/精神科 rollup**，幻觉 `unsupported_rate`；旧黑名单降级为硬安全地板）·
 ③ 编排与鲁棒性（Accuracy：routing/TIA/探针/live）。排行榜分轴呈现；`routing_manifest.yaml` 让
-③（抗污染）权重高于 ①。判官有效性诊断（长度偏置、同源 self-preference、校准漂移）随排行榜一并输出。
+③（抗污染）权重高于 ①。判官有效性诊断（长度偏置、同源 self-preference、校准漂移、HealthBench
+context-awareness 的 `ctx_appropriate_rate`）随排行榜一并输出。
+
+> **幻觉率怎么对标文献**：默认的 `unsupported_rate` 是判官给每条回答的多源溯源二元标签
+> （book/guideline/unsupported）。加 `--hallu` 后切换到**原子声明级**口径——把回答拆成原子临床声明、
+> 逐条判 supported/unsupported/not_sure，`unsupported_rate = Σunsupported / Σ声明`、外加 `factual_precision`。
+> 这正是 **FActScore**（原子事实精度）与 **HealthBench-Hallu**（claim 分解+外部证据）的做法，
+> `not_sure` 弃权类（**MedHallu** 发现可显著提升可靠性）单列、不计幻觉。排行榜专科族优先用 claim 级率
+> （标 `unsupported_metric=claim`），无 `--hallu` 时回退到逐答二元口径。
 
 > 诚实边界：`live` 路测的是「与静态书本 Agent 的一致性」，非绝对真值（兄弟知识也是书本+2024 快照、
 > 且依赖 DeepSeek）；`freshness` v1 用判官自身指南知识判时效，真·实时 websearch 是 `/autoresearch` 升级路径。
