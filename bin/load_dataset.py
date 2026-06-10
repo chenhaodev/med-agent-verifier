@@ -116,6 +116,68 @@ def load_book():
     return records
 
 
+def load_probes():
+    """归一化幻觉探针（gen_probes.py 冻结的 eval/probes/*.yaml）→ gold_type=probe 记录。
+
+    只发射 validity=verified 的探针（needs_review 的 false_premise 未经判官核实，不评分）。
+    task 取 probe_kind（nonexistent/false_premise），供分组与 q 文件命名。
+    """
+    import yaml  # 延迟导入
+
+    records = []
+    for path in sorted(glob.glob(os.path.join(ROOT_DIR, "eval", "probes", "*.yaml"))):
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        rel = os.path.relpath(path, ROOT_DIR)
+        for p in data.get("probes", []) or []:
+            if p.get("validity") != "verified":
+                continue
+            records.append({
+                "track": "probe",
+                "task": p.get("probe_kind", "probe"),
+                "id": p.get("id"),
+                "domain": p.get("domain"),
+                "mode": None,
+                "gold_type": "probe",
+                "metric": "accuracy",
+                "probe_kind": p.get("probe_kind"),
+                "expected_behavior": p.get("expected_behavior"),
+                "question": p.get("question", ""),
+                "provenance": p.get("provenance", {}),
+                "gold_source": rel,
+            })
+    return records
+
+
+def load_tool_decision():
+    """归一化工具决策集（tool_decision.yaml，gen_tool_decision.py 冻结）→ tool_decision 记录。"""
+    import yaml  # 延迟导入
+
+    path = os.path.join(ROOT_DIR, "eval", "probes", "tool_decision.yaml")
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    rel = os.path.relpath(path, ROOT_DIR)
+    records = []
+    for it in data.get("items", []) or []:
+        if it.get("validity") != "verified":
+            continue
+        records.append({
+            "track": "tool_decision",
+            "task": "tool_decision",
+            "id": it.get("id"),
+            "domain": None,
+            "mode": None,
+            "gold_type": "tool_decision",
+            "metric": "accuracy",
+            "expected_action": it.get("expected_action"),
+            "question": it.get("question", ""),
+            "gold_source": rel,
+        })
+    return records
+
+
 def _apply_subset(records, name):
     """按命名清单 eval/subsets/<name>.yaml 取片，并保持清单内顺序（mini-bench 固定基准）。
 
@@ -194,7 +256,9 @@ def _filter(records, args):
 
 def main():
     ap = argparse.ArgumentParser(description="统一化 gold 加载器（Track A + B）")
-    ap.add_argument("--track", choices=["book", "medbench", "both"], default="both")
+    ap.add_argument("--track",
+                    choices=["book", "medbench", "both", "probe", "tool_decision"],
+                    default="both")
     ap.add_argument("--subset", help="命名子集清单 eval/subsets/<name>.yaml（mini/medium/large）")
     ap.add_argument("--task", help="逗号分隔的 task 名（MedCOT / internists / psy …）")
     ap.add_argument("--domain", help="逗号分隔的 specialty（仅 Track B，如 cardiology）")
@@ -209,6 +273,10 @@ def main():
         records += load_medbench()
     if args.track in ("book", "both"):
         records += load_book()
+    if args.track == "probe":
+        records += load_probes()
+    if args.track == "tool_decision":
+        records += load_tool_decision()
 
     records = _filter(records, args)
 

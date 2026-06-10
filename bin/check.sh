@@ -36,8 +36,9 @@ B=$(python3 "$SCRIPT_DIR/load_dataset.py" --track book --count 2>/dev/null || ec
 [[ "$A" -gt 0 ]] && pass "Track A 加载 $A 条" || fail "Track A 加载为 0"
 [[ "$B" -gt 0 ]] && pass "Track B 加载 $B 条（兄弟 gold live）" || fail "Track B 加载为 0（兄弟项目路径？）"
 
-# 3) judge 资产存在
-for f in eval/judge_prompt.md eval/judge_prompt_reference.md bin/parse_judge.py; do
+# 3) judge 资产存在（含 TASK2 新增的 probe/TIA/freshness rubric）
+for f in eval/judge_prompt.md eval/judge_prompt_reference.md eval/judge_prompt_probe.md \
+         eval/judge_prompt_tia.md eval/judge_prompt_freshness.md bin/parse_judge.py; do
   [[ -s "$ROOT_DIR/$f" ]] && pass "$f 存在" || fail "$f 缺失"
 done
 
@@ -47,6 +48,23 @@ if "$SCRIPT_DIR/smoke.sh" >/tmp/verifier_smoke.log 2>&1; then
 else
   fail "smoke 失败（见 /tmp/verifier_smoke.log）"
 fi
+
+# 5) TASK2 特性脚本健全性（零 judge 预算：仅语法/解析/loader）
+for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing parse_choice freshness_audit; do
+  python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$ROOT_DIR/bin/$s.py" 2>/dev/null \
+    && pass "bin/$s.py 语法 ok" || fail "bin/$s.py 语法错误"
+done
+for s in leaderboard run_sibling eval_live freshness_audit; do
+  bash -n "$ROOT_DIR/bin/$s.sh" 2>/dev/null && pass "bin/$s.sh 语法 ok" || fail "bin/$s.sh 语法错误"
+done
+# leaderboard 须能在零/部分数据下解析不崩
+python3 "$SCRIPT_DIR/leaderboard.py" >/dev/null 2>&1 \
+  && pass "leaderboard.py 聚合（含零/部分数据）" || fail "leaderboard.py 聚合失败"
+# 探针/工具决策 loader round-trip（确定性，无 API）
+PB=$(python3 "$SCRIPT_DIR/load_dataset.py" --track probe --count 2>/dev/null || echo -1)
+TD=$(python3 "$SCRIPT_DIR/load_dataset.py" --track tool_decision --count 2>/dev/null || echo -1)
+[[ "$PB" -ge 0 ]] && pass "probe loader ok（$PB 条 verified）" || fail "probe loader 失败"
+[[ "$TD" -ge 0 ]] && pass "tool_decision loader ok（$TD 条）" || fail "tool_decision loader 失败"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━"
 [[ $RC -eq 0 ]] && echo "✓ 全部门禁通过，可运行 eval.sh" || echo "✗ 存在未通过门禁" >&2

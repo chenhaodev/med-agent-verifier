@@ -136,10 +136,26 @@ def _regex_flags(raw):
     return re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))
 
 
+_GSRC_VALID = ("book", "guideline", "unsupported")
+
+
+def _grounding_source(raw):
+    """E1 多源溯源：尽力抽取判官给出的 grounding_source ∈ {book,guideline,unsupported}。
+
+    可加性、最佳努力——取不到返回 None，绝不影响四维 score 的 ok 判定。
+    """
+    m = re.search(r'"grounding_source"\s*:\s*"([^"]+)"', raw)
+    if not m:
+        return None
+    v = m.group(1).strip().lower()
+    return v if v in _GSRC_VALID else None
+
+
 def parse(raw):
     """返回 (result_dict, ok)。ok=False 表示分数不可信，建议重跑判官。"""
     raw = (raw or "").strip()
     obj_str = _extract_balanced(raw)
+    gsrc = _grounding_source(raw)  # E1：可加性，与四维 ok 判定解耦
 
     if obj_str:
         normalized = obj_str.replace("\n", " ").replace("\r", " ")
@@ -153,6 +169,7 @@ def parse(raw):
             if all(s is not None for s in strict.values()):
                 return {
                     **strict,
+                    "grounding_source": gsrc or data.get("grounding_source"),
                     "flags": list(data.get("flags", []) or []),
                     "ok": True,
                     "error": None,
@@ -163,6 +180,7 @@ def parse(raw):
     if hits >= len(DIMS):  # 四维全部命中 → 视为已恢复，可信
         return {
             **scores,
+            "grounding_source": gsrc,
             "flags": _regex_flags(raw),
             "ok": True,
             "error": None,
@@ -171,6 +189,7 @@ def parse(raw):
     # 兜底也无法凑齐四维 → 标记不可信，交由调用方决定是否重跑
     return {
         **scores,
+        "grounding_source": gsrc,
         "flags": _regex_flags(raw) or [f"判官响应无法解析（仅命中 {hits}/4 维分数）"],
         "ok": False,
         "error": (obj_str or raw)[:200],

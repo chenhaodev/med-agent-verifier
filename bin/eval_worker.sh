@@ -38,6 +38,9 @@ CACHE_ARGS=()
 THINK_ARGS=()
 [[ -n "$OLLAMA_THINK" ]] && THINK_ARGS=(--think "$OLLAMA_THINK")
 
+# judge 调用（四维流程与探针分支共用）：payload 经 $JUDGE_PAYLOAD/stdin，缓存参数透传
+judge_call() { printf '%s' "$JUDGE_PAYLOAD" | "$SCRIPT_DIR/call_judge.sh" "$@" 2>/dev/null; }
+
 # ─── 1) 解析记录关键字段（一次 python3）──────────────────────────
 _LINE=$(RECORD_OBJ="$RECORD_OBJ" python3 - <<'PYEOF'
 import json, os
@@ -72,10 +75,143 @@ if [[ -z "${MODEL_RESPONSE// /}" ]]; then
   exit 0
 fi
 
-# 过短 → 重试一次
-if [[ ${#MODEL_RESPONSE} -lt 200 ]]; then
+# 过短 → 重试一次（探针的正确回答可能很短，如「无此药」，故探针不触发此重试）
+if [[ "$GOLD_TYPE" != "probe" && ${#MODEL_RESPONSE} -lt 200 ]]; then
   RETRY=$(gen) || true
   [[ -n "${RETRY// /}" ]] && MODEL_RESPONSE="$RETRY"
+fi
+
+# ─── 2.5) 探针分支（gold_type=probe）：二元 success 判定，独立于四维流程 ───
+if [[ "$GOLD_TYPE" == "probe" ]]; then
+  export RECORD_OBJ MODEL_RESPONSE JUDGE_MODEL JUDGE_SYSTEM_PROBE
+  JUDGE_PAYLOAD=$(python3 - <<'PYEOF'
+import json, os
+r = json.loads(os.environ["RECORD_OBJ"])
+judge_input = {
+    "question": r.get("question", ""),
+    "model_response": os.environ["MODEL_RESPONSE"],
+    "probe_kind": r.get("probe_kind"),
+    "expected_behavior": r.get("expected_behavior"),
+}
+payload = {
+    "model": os.environ["JUDGE_MODEL"],
+    "temperature": 0, "max_tokens": 1000,
+    "messages": [
+        {"role": "system", "content": os.environ["JUDGE_SYSTEM_PROBE"]},
+        {"role": "user", "content": json.dumps(judge_input, ensure_ascii=False)},
+    ],
+}
+print(json.dumps(payload, ensure_ascii=False))
+PYEOF
+)
+  JUDGE_RESPONSE=$(judge_call ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"}) || {
+    printf '[probe:%s/%s] [JUDGE ERROR]\n' "$TASK" "$QID"
+    printf '{"track":"probe","task":"%s","id":"%s","error":"judge_error"}\n' "$TASK" "$QID" > "$OUT_FILE"
+    exit 0
+  }
+  export JUDGE_RESPONSE
+  python3 - "$OUT_FILE" <<'PYEOF'
+import json, os, re, sys
+out_file = sys.argv[1]
+r = json.loads(os.environ["RECORD_OBJ"])
+raw = os.environ.get("JUDGE_RESPONSE", "") or ""
+success = behavior = reason = None
+m = re.search(r"\{.*\}", raw, re.DOTALL)
+if m:
+    try:
+        d = json.loads(m.group(0))
+        success = bool(d.get("success"))
+        behavior, reason = d.get("behavior"), d.get("reason")
+    except json.JSONDecodeError:
+        pass
+if success is None:  # 正则兜底
+    mm = re.search(r'"success"\s*:\s*(true|false)', raw, re.IGNORECASE)
+    if mm:
+        success = mm.group(1).lower() == "true"
+flags = []
+if success is None:  # 判官响应无法解析 → 保守计失败并标记
+    success = False
+    flags = ["探针判官响应无法解析 success，保守计为失败"]
+row = {
+    "track": "probe", "task": r.get("task"), "id": r.get("id"), "domain": r.get("domain"),
+    "gold_type": "probe", "probe_kind": r.get("probe_kind"),
+    "expected_behavior": r.get("expected_behavior"),
+    "question": " ".join(str(r.get("question", "")).split()),
+    "model_response": os.environ["MODEL_RESPONSE"],
+    "success": bool(success), "behavior": behavior, "reason": reason, "flags": flags,
+}
+with open(out_file, "w", encoding="utf-8") as f:
+    json.dump(row, f, ensure_ascii=False)
+mark = "✓" if row["success"] else "✗"
+print(f"[probe:{r.get('probe_kind')}/{r.get('id')}] {mark} success={row['success']} ({behavior})")
+PYEOF
+  exit 0
+fi
+
+# ─── 2.6) 工具决策分支（gold_type=tool_decision，TIA）：二元 success 判定 ───
+if [[ "$GOLD_TYPE" == "tool_decision" ]]; then
+  export RECORD_OBJ MODEL_RESPONSE JUDGE_MODEL JUDGE_SYSTEM_TIA
+  JUDGE_PAYLOAD=$(python3 - <<'PYEOF'
+import json, os
+r = json.loads(os.environ["RECORD_OBJ"])
+judge_input = {
+    "question": r.get("question", ""),
+    "model_response": os.environ["MODEL_RESPONSE"],
+    "expected_action": r.get("expected_action"),
+}
+payload = {
+    "model": os.environ["JUDGE_MODEL"],
+    "temperature": 0, "max_tokens": 1000,
+    "messages": [
+        {"role": "system", "content": os.environ["JUDGE_SYSTEM_TIA"]},
+        {"role": "user", "content": json.dumps(judge_input, ensure_ascii=False)},
+    ],
+}
+print(json.dumps(payload, ensure_ascii=False))
+PYEOF
+)
+  JUDGE_RESPONSE=$(judge_call ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"}) || {
+    printf '[tia/%s] [JUDGE ERROR]\n' "$QID"
+    printf '{"track":"tool_decision","task":"tool_decision","id":"%s","error":"judge_error"}\n' "$QID" > "$OUT_FILE"
+    exit 0
+  }
+  export JUDGE_RESPONSE
+  python3 - "$OUT_FILE" <<'PYEOF'
+import json, os, re, sys
+out_file = sys.argv[1]
+r = json.loads(os.environ["RECORD_OBJ"])
+raw = os.environ.get("JUDGE_RESPONSE", "") or ""
+success = tool_called = reason = None
+m = re.search(r"\{.*\}", raw, re.DOTALL)
+if m:
+    try:
+        d = json.loads(m.group(0))
+        success = bool(d.get("success"))
+        tool_called, reason = d.get("tool_called"), d.get("reason")
+    except json.JSONDecodeError:
+        pass
+if success is None:
+    mm = re.search(r'"success"\s*:\s*(true|false)', raw, re.IGNORECASE)
+    if mm:
+        success = mm.group(1).lower() == "true"
+flags = []
+if success is None:
+    success = False
+    flags = ["TIA 判官响应无法解析 success，保守计为失败"]
+row = {
+    "track": "tool_decision", "task": "tool_decision", "id": r.get("id"), "domain": None,
+    "gold_type": "tool_decision", "expected_action": r.get("expected_action"),
+    "question": " ".join(str(r.get("question", "")).split()),
+    "model_response": os.environ["MODEL_RESPONSE"],
+    "success": bool(success), "correct": bool(success),
+    "tool_called": tool_called, "reason": reason, "flags": flags,
+}
+with open(out_file, "w", encoding="utf-8") as f:
+    json.dump(row, f, ensure_ascii=False)
+mark = "✓" if row["success"] else "✗"
+print(f"[tia/{r.get('id')}] {mark} expected={r.get('expected_action')} called={tool_called}")
+PYEOF
+  exit 0
 fi
 
 # ─── 3) 组判分 payload（按 gold_type 分支，一次 python3）──────────
@@ -121,8 +257,6 @@ print(json.dumps(payload, ensure_ascii=False))
 PYEOF
 )
 
-judge_call() { printf '%s' "$JUDGE_PAYLOAD" | "$SCRIPT_DIR/call_judge.sh" "$@" 2>/dev/null; }
-
 JUDGE_RESPONSE=$(judge_call ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"}) || {
   printf '[%s/%s] [JUDGE ERROR]\n' "$TASK" "$QID"
   printf '{"track":"%s","task":"%s","id":"%s","error":"judge_error"}\n' "$TRACK" "$TASK" "$QID" > "$OUT_FILE"
@@ -160,6 +294,7 @@ acc = int(parsed.get("accuracy", 0))
 saf = int(parsed.get("safety", 0))
 grd = int(parsed.get("grounding", 0))
 flags = list(parsed.get("flags", []) or [])
+grounding_source = parsed.get("grounding_source")  # E1 多源溯源：book|guideline|unsupported
 error = parsed.get("error")
 
 # 确定性幻觉检查：仅 Track B，且只对 **字面禁止串** patient_must_not_phrases 做子串命中
@@ -192,7 +327,11 @@ row = {
     "model_response": model_response,
     "scores": {"coverage": cov, "accuracy": acc, "safety": saf, "grounding": grd, "total": total},
     "pass": passed,
+    # 幻觉信号已改版（E1）：unsupported（判官多源溯源）= 真幻觉率；
+    # hallucinated（patient_must_not_phrases 字面命中）降级为**硬安全地板**信号，仍记录但非头条。
+    "grounding_source": grounding_source,
     "hallucinated": hallucinated,
+    "safety_floor_violation": hallucinated,
     "flags": flags,
 }
 if error:

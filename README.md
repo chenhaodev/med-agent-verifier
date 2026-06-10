@@ -254,6 +254,43 @@ python3 bin/select_subset.py                       # （重新）生成三档清
 
 ---
 
+## TASK2 扩展 · 跨模型排行榜 → 路由清单（为离线 MoA 选型）
+
+目标变了：用本验证器跑遍本地 Ollama 模型，产出**排行榜**，据此为「右任务选右模型」搭一套
+**离线 MoA**（route-to-top-k + aggregate，推理期不依赖 API；MoA 本体另建）。判官仍用 DeepSeek
+（评测期一次性成本，可接受）。新增四类能力：
+
+```bash
+# A·排行榜 + B·路由清单：聚合所有结果 → 排名 → 派生 routing_manifest.yaml
+./bin/leaderboard.sh --md          # 三族分轴排行榜 + bootstrap CI + 长度/同源/污染诊断
+./bin/leaderboard.sh --common      # 仅取所有受比模型共有 record-id（严格可比）
+python3 bin/build_routing.py       # top-k/桶 + CI 重叠并列 + orchestrator 主模型提名
+
+# E·幻觉新度量：多源溯源判官 + 主动探针（不存在实体拒答 / 假前提纠偏）
+python3 bin/gen_probes.py          # 冻结探针集（nonexistent=verified；false_premise=needs_review）
+./bin/eval.sh --track probe --model qwen3.5
+
+# F·编排能力（MoA 主模型技能）：选择科室 + 是否调用工具
+python3 bin/eval_routing.py --model qwen3.5                 # 专科路由准确率（judge-free，零 DeepSeek）
+python3 bin/gen_tool_decision.py && ./bin/eval.sh --track tool_decision --model qwen3.5   # TIA 对称计分
+
+# C·动态评测：任意疾病问题 → 兄弟 Agent 现答作参考 → 评候选（抗 MedBench 记忆/污染）
+echo "我爸有高血压，平时饮食要注意什么？" | ./bin/eval_live.sh --agent internists --model qwen3.5
+
+# D·gold 时效审计（只读，绝不改 gold）：标记疑似过时的教材要点
+./bin/freshness_audit.sh --domain cardiology
+```
+
+**三个度量族，互不可比，永不合并**：① 能力（Track A，0–40/任务，⚠公开榜数据有污染风险）·
+② 专科（Track B，0–40/专科，溯源型 `unsupported_rate` 取代旧黑名单幻觉率，旧黑名单降级为硬安全地板）·
+③ 编排与鲁棒性（Accuracy：routing/TIA/探针/live）。排行榜分轴呈现；`routing_manifest.yaml` 让
+③（抗污染）权重高于 ①。判官有效性诊断（长度偏置、同源 self-preference、校准漂移）随排行榜一并输出。
+
+> 诚实边界：`live` 路测的是「与静态书本 Agent 的一致性」，非绝对真值（兄弟知识也是书本+2024 快照、
+> 且依赖 DeepSeek）；`freshness` v1 用判官自身指南知识判时效，真·实时 websearch 是 `/autoresearch` 升级路径。
+
+---
+
 ## 项目结构
 
 ```text

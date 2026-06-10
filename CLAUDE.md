@@ -22,20 +22,35 @@ The core `TASK.md` design questions are now **resolved and implemented (Phase 1)
 gold tracks above; the **unified data interface** is `bin/load_dataset.py` (normalizes both into one record
 discriminated by `gold_type`); **controllable subsets** are `--track/--task/--domain/--id/--limit/--sample`.
 
-**Status: Phase 1 built & verified** — bash-orchestrated, two-track, LLM-as-a-Judge. Layout: `bin/` scripts
-+ `eval/` prompts & registry. See `README.md` for the full picture. Key commands:
+**Status: Phase 1 + TASK2 built & verified** — bash-orchestrated, LLM-as-a-Judge. The verifier produces a
+**cross-model leaderboard** over local Ollama models that later feeds an **offline MoA** (route-to-top-k +
+aggregate; built separately, see `TASK2.md`). Layout: `bin/` scripts + `eval/` prompts & registry. See
+`README.md` for the full picture. Key commands:
 
 ```bash
 pip install -r requirements.txt          # only pyyaml
 cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
 ruff check bin/*.py                       # lint: line-length 99, select E/F/I
-./bin/check.sh                            # static gates: registry coverage + both gold load + Ollama smoke (no judge budget)
+./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
 ./bin/eval.sh --track both --sample 3 --model qwen3.5                  # run: candidate (Ollama) → halluc check → judge (DeepSeek) → 0–40
 ./bin/eval.sh --subset mini --model qwen3.5                            # 30-question tiered mini-bench (hardest + most orthogonal)
-./bin/eval.sh --track book --domain cardiology --limit 3 --model qwen3.5   # Track B slice: per-specialty + hallucination rate
 python3 bin/select_subset.py                                          # (re)generate eval/subsets/{mini,medium,large}.yaml
+# ── TASK2: leaderboard → routing, orchestrator eval, hallucination probes, live/freshness ──
+python3 bin/gen_probes.py && python3 bin/gen_tool_decision.py         # (re)generate frozen probe sets
+./bin/eval.sh --track probe --model qwen3.5                           # E: nonexistent + false-premise hallucination probes
+./bin/eval.sh --track tool_decision --model qwen3.5                   # F2: tool-call decision (TIA, symmetric)
+python3 bin/eval_routing.py --model qwen3.5                           # F1: specialty-routing accuracy (judge-free, 0 DeepSeek)
+echo "我爸有高血压…" | ./bin/eval_live.sh --agent internists --model qwen3.5  # C: judge vs FRESH sibling answer
+./bin/leaderboard.sh --md                                            # A: cross-model leaderboard (3 metric families, bootstrap CIs)
+python3 bin/build_routing.py                                         # B: eval/routing_manifest.yaml (top-k + orchestrator)
+./bin/freshness_audit.sh --domain cardiology                        # D: flag stale gold vs current guidelines (read-only)
 ```
+
+**Three metric families — never blend** (separate scales): ① Capability (Track A, 0–40, per task,
+⚠contamination-risk: public leaderboard data) · ② Specialty (Track B, 0–40, per domain, grounding-based
+`unsupported_rate`) · ③ Orchestration & robustness (Accuracy %: routing, TIA, probes, live). The leaderboard
+keeps these on distinct axes; `routing_manifest.yaml` weights ③ above ① (contamination-resistant).
 
 Candidate concurrency defaults to **1** (Ollama serializes; >1 trips curl timeout via queue wait). `--think
 on|off` toggles a reasoning candidate's think-trace. **Tiered mini-bench** (`bin/select_subset.py`, **pure
@@ -44,9 +59,18 @@ frozen in `eval/subsets/*.yaml`; "hardest" = model-free difficulty heuristic, "m
 `(track,task,domain)`-bucket round-robin (capability × specialty axes), with all 12 MedBench capabilities
 guaranteed in `mini`. Regenerate after the siblings grow.
 
-**Phase 2/3 (not yet built):** structured-task judge overrides (CallAPI/RetAPI/DBOps), crisis/OOB
-safety-interception recall, MedEthics accuracy path (`bin/parse_choice.py`; no jsonl yet — see
-`eval/task_registry.yaml` `pending:`), multi-model leaderboard.
+**TASK2 added (built & verified):** cross-model leaderboard (`bin/leaderboard.py`, bootstrap CIs +
+length/self-preference/contamination diagnostics) → ranked routing manifest (`bin/build_routing.py`,
+CI-overlap ties + `orchestrator:` nomination); hallucination overhaul (multi-source grounding judge +
+`gen_probes.py` nonexistent/false-premise probes, blacklist demoted to safety floor); orchestrator eval
+(`eval_routing.py` judge-free routing accuracy + `tool_decision` TIA); live-sibling dynamic eval
+(`run_sibling.sh`/`eval_live.sh`); gold freshness audit (`freshness_audit.sh`, read-only). The MoA
+inference system itself consumes `routing_manifest.yaml` and is **built separately**.
+
+**Still deferred:** structured-task judge overrides (CallAPI/RetAPI/DBOps), crisis/OOB safety-interception
+recall, MedEthics accuracy path (parser ready in `bin/parse_choice.py`; no jsonl yet — see
+`eval/task_registry.yaml` `pending:`), live-WebSearch freshness (currently judge-knowledge; `/autoresearch`
+upgrade), probe validity `--verify` for false-premise (currently `needs_review`, only `nonexistent` scored).
 
 ## The reference dataset: `medbench-agent-95/`
 

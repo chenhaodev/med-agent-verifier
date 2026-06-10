@@ -118,9 +118,11 @@ echo ""
 
 JUDGE_SYSTEM_CRITERIA=$(cat "$ROOT_DIR/eval/judge_prompt.md")
 JUDGE_SYSTEM_REFERENCE=$(cat "$ROOT_DIR/eval/judge_prompt_reference.md")
+JUDGE_SYSTEM_PROBE=$(cat "$ROOT_DIR/eval/judge_prompt_probe.md")
+JUDGE_SYSTEM_TIA=$(cat "$ROOT_DIR/eval/judge_prompt_tia.md")
 
 export ROOT_DIR SCRIPT_DIR WORKDIR OLLAMA_MODEL OLLAMA_THINK JUDGE_MODEL EVAL_NO_CACHE
-export JUDGE_SYSTEM_CRITERIA JUDGE_SYSTEM_REFERENCE
+export JUDGE_SYSTEM_CRITERIA JUDGE_SYSTEM_REFERENCE JUDGE_SYSTEM_PROBE JUDGE_SYSTEM_TIA
 export OLLAMA_HOST DEEPSEEK_API_KEY DEEPSEEK_MODEL DEEPSEEK_TIMEOUT DEEPSEEK_MAX_RETRIES 2>/dev/null || true
 
 DISPATCHER="$WORKDIR/dispatch.sh"
@@ -155,19 +157,22 @@ for path in sorted(glob.glob(f"{workdir}/r_*.json")):
 evaluated = len(rows)
 errors = sum(1 for r in rows if "error" in r)
 scored = [r for r in rows if "error" not in r]
-n = len(scored)
-passed = sum(1 for r in scored if r.get("pass") is True)
-halluc = sum(1 for r in scored if r.get("hallucinated") is True)
+# 四维评分行（reference/criteria/live）与 Accuracy 行（probe/tool_decision：success 非四维）分流
+scored4 = [r for r in scored if "scores" in r]
+probe_rows = [r for r in scored if "scores" not in r]  # 探针 + 工具决策等二元成功行
+n = len(scored4)
+passed = sum(1 for r in scored4 if r.get("pass") is True)
+halluc = sum(1 for r in scored4 if r.get("hallucinated") is True)
 
 def avg(key):
-    return round(sum(r["scores"][key] for r in scored) / n, 1) if n else 0
+    return round(sum(r["scores"][key] for r in scored4) / n, 1) if n else 0
 
 pass_rate = round(passed * 100 / n, 1) if n else 0
 halluc_rate = round(halluc * 100 / n, 1) if n else 0
 
 # 每专科（Track B）
 by_domain = defaultdict(list)
-for r in scored:
+for r in scored4:
     if r.get("domain"):
         by_domain[r["domain"]].append(r)
 domain_table = {
@@ -181,7 +186,7 @@ domain_table = {
 
 # 每 task（Track A 能力分）
 by_task = defaultdict(list)
-for r in scored:
+for r in scored4:
     by_task[r.get("task")].append(r)
 task_table = {
     t: {"n": len(rs), "avg_total": round(sum(x["scores"]["total"] for x in rs) / len(rs), 1)}
@@ -191,7 +196,7 @@ task_table = {
 # 每 track 均分：A(reference) 与 B(criteria) 用不同 judge 规约/标度，混在一个 headline
 # 均分里不可比；故当一次跑同时含两路时，分轨各报一份，避免顶线数字随过滤构成漂移。
 by_track = defaultdict(list)
-for r in scored:
+for r in scored4:
     by_track[r.get("track")].append(r)
 track_table = {
     tk: {
@@ -202,6 +207,19 @@ track_table = {
     for tk, rs in sorted(by_track.items())
 }
 
+# Accuracy 行成功率（probe/tool_decision，按 probe_kind 或 task 分）
+probe_table = {}
+if probe_rows:
+    by_kind = defaultdict(list)
+    for r in probe_rows:
+        by_kind[r.get("probe_kind") or r.get("task") or "acc"].append(r)
+    probe_table = {
+        k: {"n": len(rs),
+            "success_rate": round(
+                sum(1 for x in rs if x.get("success") or x.get("correct")) / len(rs), 3)}
+        for k, rs in sorted(by_kind.items())
+    }
+
 summary = {
     "timestamp": ts, "track": track, "subset": subset or None, "model": model, "judge_model": judge_model,
     "total": total, "evaluated": evaluated, "errors": errors,
@@ -211,6 +229,7 @@ summary = {
     "by_track": track_table,
     "by_domain": domain_table,
     "by_task": task_table,
+    "by_probe": probe_table,
 }
 with open(result_file, "w", encoding="utf-8") as f:
     json.dump({"summary": summary, "results": rows}, f, ensure_ascii=False, indent=2)
@@ -218,15 +237,17 @@ with open(result_file, "w", encoding="utf-8") as f:
 print("\n════════════════════════════════════════════")
 print(f" Eval 汇总 — {ts}  track={track}  model={model}")
 print("════════════════════════════════════════════")
-print(f" 记录：{total}  有效评分：{n}  错误：{errors}")
-print(f" 通过：{passed}  通过率：{pass_rate}%")
-if len(track_table) > 1:
-    # 混合跑：分轨报均分（A/B 标度不可比），不报一个混合 headline
-    print(" 分轨均分（A=reference / B=criteria，标度不可比，勿合并比较）：")
-    for tk, v in track_table.items():
-        print(f"   {tk:<9} n={v['n']:<3} C:{v['coverage']} A:{v['accuracy']} S:{v['safety']} G:{v['grounding']}  → {v['total']}/40")
-else:
-    print(f" 四维均分  C:{avg('coverage')} A:{avg('accuracy')} S:{avg('safety')} G:{avg('grounding')}  → 综合 {avg('total')}/40")
+probe_n = len(probe_rows)
+print(f" 记录：{total}  有效评分：{n}{('  探针：'+str(probe_n)) if probe_n else ''}  错误：{errors}")
+if n:  # 仅当有四维评分行才报通过率/四维均分（probe-only 跑会跳过，避免全 0 噪声）
+    print(f" 通过：{passed}  通过率：{pass_rate}%")
+    if len(track_table) > 1:
+        # 混合跑：分轨报均分（A/B 标度不可比），不报一个混合 headline
+        print(" 分轨均分（A=reference / B=criteria，标度不可比，勿合并比较）：")
+        for tk, v in track_table.items():
+            print(f"   {tk:<9} n={v['n']:<3} C:{v['coverage']} A:{v['accuracy']} S:{v['safety']} G:{v['grounding']}  → {v['total']}/40")
+    else:
+        print(f" 四维均分  C:{avg('coverage')} A:{avg('accuracy')} S:{avg('safety')} G:{avg('grounding')}  → 综合 {avg('total')}/40")
 if track in ("book", "both") and any(r.get("gold_type") == "criteria" for r in scored):
     print(f" 幻觉率（确定性 patient_must_not_phrases 命中）：{halluc_rate}%  （{halluc}/{n}）")
 if domain_table:
@@ -239,6 +260,10 @@ if track in ("medbench", "both") and any(r.get("gold_type") == "reference" for r
     for t, v in task_table.items():
         if any(r.get("task") == t and r.get("gold_type") == "reference" for r in scored):
             print(f"   {t:<14} n={v['n']:<3} 综合 {v['avg_total']}/40")
+if probe_table:
+    print(f"\n Accuracy 度量成功率（探针纠偏/拒答、工具决策正确=成功，{len(probe_rows)} 条）：")
+    for k, v in probe_table.items():
+        print(f"   {k:<18} n={v['n']:<3} 成功率 {v['success_rate']*100:.0f}%")
 print("════════════════════════════════════════════")
 print(f" 结果文件：{result_file}")
 PYEOF

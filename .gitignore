@@ -3,6 +3,11 @@
 *.pdf
 eval/results/*.json
 eval/results/*_summary.txt
+# 派生的易变产物（脚本可随时重生）。探针/子集 YAML 是冻结基准，照常提交。
+eval/leaderboard.json
+eval/leaderboard.md
+eval/routing_manifest.yaml
+eval/freshness/
 __pycache__/
 *.pyc
 .DS_Store

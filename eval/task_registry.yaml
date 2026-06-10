@@ -38,9 +38,43 @@ book:
       gold_file: ../med-agent-psy/eval/gold.yaml
       capability: 精神科（DSM-5）多领域
 
+# ── 编排能力（Accuracy 度量族，family-3；MoA 主模型选型依据）──
+orchestration:
+  routing:
+    gold_type: routing
+    metric: accuracy            # judge-free，真值=book expected_domain
+    runner: eval_routing.py
+    parser: parse_choice.py
+    capability: 专科路由（选择科室）
+  tool_decision:
+    gold_type: tool_decision
+    metric: accuracy            # TIA：对称计分（该调用就调用、不该就别调用）
+    judge_prompt: judge_prompt_tia.md
+    gold_file: eval/probes/tool_decision.yaml
+    generator: gen_tool_decision.py
+    capability: 工具调用决策
+
+# ── 鲁棒性/幻觉探针（Accuracy 度量族，family-3；抗 MedBench 污染）──
+robustness:
+  probe:
+    gold_type: probe
+    metric: accuracy            # 纠偏/拒答=成功
+    judge_prompt: judge_prompt_probe.md
+    gold_glob: eval/probes/{nonexistent,false_premise}.yaml
+    generator: gen_probes.py
+    capability: 不存在实体拒答（nonexistent）/ 假前提纠偏（false_premise）
+
+# ── gold 时效性审计（只读，不改 gold；兄弟是单一真相源）──
+audit:
+  freshness:
+    metric: judge              # current | drifted | uncertain
+    judge_prompt: judge_prompt_freshness.md
+    runner: freshness_audit.py
+    note: 真·实时 websearch 为 /autoresearch 升级路径
+
 # ── Phase 2 预留：MedEthics 单选准确率（accuracy），数据到位后启用 ──
 pending:
   MedEthics:
     metric: accuracy
-    parser: parse_choice.py
+    parser: parse_choice.py    # 已实现（routing 复用），待 MedEthics.jsonl 数据
     note: medbench-agent-95/MedEthics.md 存在但无 .jsonl 数据

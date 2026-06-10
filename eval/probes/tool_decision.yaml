@@ -1,0 +1,308 @@
+generated: '2026-06-10'
+metric: TIA (Tool Invocation Awareness)
+count: 30
+n_call: 15
+n_direct: 15
+note: 由 bin/gen_tool_decision.py 确定性生成；正负平衡，对称计分。
+items:
+- id: TD_call_000
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：RequestPreoperativeBed（术前待床位申请）描述：为已确定手术日期的患者，由主治医生或科室秘书提交入院待床申请。系统将根据申请信息和床位资源，将患者加入相应科室的待床队列，并返回申请状态。输入参数：patient_id
+    (string，必填)：患者唯一标识（如住院号或身份证号）。admitting_department (string，必填)：拟收治入院的科室名称（例如：“心血管外科”、“神经外科”）。scheduled_surgery_date
+    (string，必填)：预定手术日期，格式为 YYYY-MM-DD。surgery_name (string，必填)：主要手术名称。requesting_physician_id
+    (string，必填)：申请医生的工号。urgency_level (string，可选)：紧急程度（“routine”=常规，“urgent”=紧急），默认为
+    “routine”。bed_type_preference (string，可选)：床位类型偏好（“single”=单人间，“double”=双人间，“general”=普通多人间），不保证满足。输出：{  "request_id":
+    "",  // 申请的唯一 ID  "status": "",  // 申请当前状态（如："submitted", "waitlisted", "approved"）  "estimated_wait_days":
+    null, // 预计等待天数（整数），若无法估计则为 null  "message": ""  // 结果消息}用户问题：我是骨科的李医生，工号是 10234。病人张伟，住院号是
+    H00128957，已经安排在下周五（2024-05-24）进行“全髋关节置换术”，需要给他申请一个术前床位，他希望能住双人间的。'
+  source: MedCallAPI#119
+  validity: verified
+- id: TD_direct_000
+  kind: no_tool
+  expected_action: direct
+  question: 我爸有高血压，平时饮食要注意什么？
+  source: internists#CARD_HTN_01
+  validity: verified
+- id: TD_call_001
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：SubmitMicrobiologyCultureRequest（微生物培养申请提交）描述：用于临床医生提交微生物培养及药敏试验的电子申请。系统接收患者信息、标本详情、临床诊断等关键数据后，会自动生成唯一的检验条码，并将申请信息录入检验信息系统（LIS），等待标本送达检验科进行处理。输入参数：patient_id
+    (string，必填)：患者唯一标识（如住院号）specimen_type (string，必填)：标本类型（"blood"=血液, "sputum"=痰液,
+    "urine"=尿液, "wound_secretion"=伤口分泌物, "csf"=脑脊液）collection_site (string，选填)：采集部位（当标本类型为"wound_secretion"等时必填）collection_time
+    (string，必填)：标本采集时间（ISO 8601 格式，例如："2023-10-27T10:30:00Z"）clinical_diagnosis (string，必填)：临床初步诊断test_items
+    (list，必填)：检验项目列表（"culture"=细菌培养, "susceptibility"=药敏试验）is_urgent (boolean，选填，默认为
+    false)：是否为急诊申请输出：{  "request_id": "",  // 申请单唯一 ID  "barcode_id": "",  // 标本容器上需贴的条码号  "status":
+    "",  // 申请状态（如：submitted, received_by_lab）  "message": ""  // 提示信息（如：申请成功，请尽快送检）}用户问题：给住院号
+    89757 的病人张伟开个急诊的痰培养加药敏。他是重症肺炎，今天早上 9 点刚留的痰，赶紧送检。'
+  source: MedCallAPI#41
+  validity: verified
+- id: TD_direct_001
+  kind: no_tool
+  expected_action: direct
+  question: 高血压患者血压控制到多少才算达标？
+  source: internists#CARD_HTN_02
+  validity: verified
+- id: TD_call_002
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：SchedulePulmonaryFunctionTest（肺功能检查预约）描述：为指定患者预约一项或多项肺功能检查，记录临床诊断目的，并可设定紧急程度和检查前注意事项。系统将返回预约凭证和最终给到患者的完整检查须知。输入参数：patient_id
+    (string，必填)：患者唯一标识（如住院号、门诊号）test_items (list，必填)：检查项目编码列表（"spirometry"=常规通气功能,
+    "dlco"=弥散功能, "lung_volume"=肺容积测定）clinical_diagnosis (string，必填)：申请检查的临床诊断或目的is_urgent
+    (boolean，必填)：是否为紧急检查（true=是, false=否）pre_test_instructions (list，可选)：额外的检查前医嘱（例如：["停用支气管扩张剂4小时"]）输出：{  "success":
+    true, // 预约是否成功  "appointment_id": "", // 预约号  "appointment_time": "", // 预约时间（若无法立即确定，则返回提示信息）  "location":
+    "", // 检查地点  "patient_instructions": "", // 整合后的完整患者须知  "error_message": null
+    // 失败时的错误信息}用户问题：给住院号为 ZY01002345 的病人张三开一个肺功能检查，主要是评估他哮喘的控制情况，查常规通气功能和弥散功能就行了。不用太急，就常规安排。另外，记得提醒他检查前
+    12 小时停用所有短效支气管扩张剂。'
+  source: MedCallAPI#45
+  validity: verified
+- id: TD_direct_002
+  kind: no_tool
+  expected_action: direct
+  question: 2024年高血压指南对血压控制目标有什么新变化？
+  source: internists#CARD_HTN_03_GUIDELINE
+  validity: verified
+- id: TD_call_003
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：SubmitAdverseTransfusionReactionReport（输血不良事件报告提交）描述：用于临床人员提交输血过程中或输血后发生的不良事件报告。系统接收报告后，将自动生成唯一报告ID，记录事件详情，并根据事件严重等级，自动流转至输血科、医务科等相关部门进行审核与处理。输入参数：patient_id
+    (string，必填)：患者住院号或唯一标识。reporter_id (string，必填)：报告人（医生/护士）的工号。reporter_name (string，必填)：报告人姓名。transfusion_id
+    (string，必填)：输注血制品的唯一码（血袋码）。reaction_time (string，必填)：不良反应发生时间（格式：YYYY-MM-DDTHH:mm:ss）。reaction_type
+    (string，必填)：不良反应类型（"allergic_reaction"=过敏反应, "febrile_non_hemolytic"=非溶血性发热, "hemolytic"=急性溶血反应,
+    "circulatory_overload"=循环超负荷）。symptoms (list，必填)：临床症状描述列表（例如：["fever", "rash",
+    "dyspnea", "chills"]）。severity (string，必填)：事件严重等级（"mild"=轻度, "moderate"=中度, "severe"=重度）。actions_taken
+    (list，必填)：已采取的紧急措施列表（例如：["stopped_transfusion", "administered_antihistamine",
+    "notified_physician"]）。notes (string，选填)：补充说明。输出：{  "success": true,  // 是否提交成功  "report_id":
+    "",  // 系统生成的唯一报告ID  "message": "",  // 提交结果反馈信息  "notified_departments": [] //
+    已通知的部门列表}用户问题：我是护士王琳，工号 N0345。刚刚在给住院号为 ZY01004567 的病人输注血袋编号为 A231205001 的红细胞悬液时，病人出现了寒战和皮疹。输血时间大概是今天下午
+    3 点半，我已经立即停止了输血，并通知了值班医生。初步判断是过敏反应，程度中等。请帮忙记录并上报这个输血不良事件。'
+  source: MedCallAPI#146
+  validity: verified
+- id: TD_direct_003
+  kind: no_tool
+  expected_action: direct
+  question: 高血压药吃着血压正常了，能不能停药？
+  source: internists#CARD_HTN_04
+  validity: verified
+- id: TD_call_004
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：CreateImagingExamOrder（创建影像检查申请）描述：为指定患者创建一项影像学检查申请单，系统将根据申请信息自动校验医保适用性、生成检查唯一码，并推送至影像科（RIS）系统进行排队预约。输入参数：patient_id
+    (string，必填)：患者唯一标识（如住院号、门诊号）exam_code (string，必填)：检查项目代码（例如："US-CARDIAC" 表示心脏彩超，"CT-CHEST"
+    表示胸部 CT）exam_name (string，必填)：检查项目标准名称clinical_diagnosis (string，必填)：临床初步诊断symptoms_and_signs
+    (string，必填)：主要症状及体征is_urgent (boolean，必填)：是否为急诊申请（true=是，false=否）requesting_doctor_id
+    (string，必填)：开单医生工号requesting_department (string，必填)：开单科室名称输出：{  "success": true,  //
+    操作是否成功  "order_id": "",  // 申请单唯一 ID  "message": "",  // 系统返回信息  "estimated_wait_time":
+    "" // 预计等待时间（仅急诊或特定项目提供）}用户问题：给心内科 32 床的病人李伟（住院号：ZY01002358）开一个急诊心脏彩超。他最近三天一直说胸闷、气短，初步诊断是急性心衰可能，我工号是
+    1024，王医生。'
+  source: MedCallAPI#44
+  validity: verified
+- id: TD_direct_004
+  kind: no_tool
+  expected_action: direct
+  question: 家里自测血压和医院测的血压不一样，哪个准？
+  source: internists#CARD_HTN_05
+  validity: verified
+- id: TD_call_005
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：RouteFollowUpReport（随访报告流转）描述：将指定的随访结果报告（如影像、检验、病理报告）根据预设规则或指定接收人进行流转，并记录流转状态。支持设置紧急程度和附加备注。输入参数：report_id
+    (string，必填)：待流转报告的唯一标识符。report_type (string，必填)：报告类型（"imaging"=影像, "lab"=检验, "pathology"=病理）。patient_id
+    (string，必填)：报告所属患者的唯一标识符。primary_physician_id (string，必填)：患者主治医生的工号，为主要接收人。recipients
+    (list，可选)：其他接收人的工号列表（如会诊医生、上级医生）。urgency_level (string，可选)：紧急程度（"normal"=普通, "urgent"=紧急），默认为
+    "normal"。notes (string，可选)：随报告一同发送的附加备注信息。输出：{  "flow_id": "",  // 本次流转操作的唯一 ID  "status":
+    "",  // 流转状态 ("success", "failed")  "message": "",  // 结果描述信息  "recipients_confirmed":
+    [] // 确认已发送的接收人列表}用户问题：请把患者李小明（ID: P12345678）刚出的胸部 CT 随访复查报告（报告号：IMG20240521009）立刻发给他的主治医生王伟（工号:
+    D9876），另外抄送一份给胸外科的赵主任（工号: D1234），跟他们说一下，报告显示结节有增大趋势，需要尽快安排会诊。'
+  source: MedCallAPI#151
+  validity: verified
+- id: TD_direct_005
+  kind: no_tool
+  expected_action: direct
+  question: 听说2024新指南推荐高血压要更早用药，是真的吗？
+  source: internists#CARD_HTN_06_GUIDELINE
+  validity: verified
+- id: TD_call_006
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：PrepareHerbalGranules（中药颗粒调配执行）描述：根据电子处方ID、患者ID、药师ID和调剂窗口信息，执行中药颗粒的调配操作。系统会自动从库存中扣减相应药品，记录调配详情（包括药品批号），并计算费用。如果库存不足或处方无效，将返回错误信息。输入参数：prescription_id
+    (string，必填)：电子中药处方唯一标识符。patient_id (string，必填)：患者唯一标识符。pharmacist_id (string，必填)：执行操作的药师工号。dispensing_window
+    (string，必填)：调剂窗口编号（例如："window_03"）。输出：{  "dispensing_id": "",  // 本次调配操作的唯一ID  "status":
+    "",  // 调配状态 ("success" = 成功, "failed_inventory_shortage" = 库存不足, "failed_invalid_prescription"
+    = 无效处方)  "items": [    {      "herb_name": "",  // 药材名称      "herb_code": "",  //
+    药材编码      "required_grams": 0,  // 处方要求克数      "dispensed_grams": 0,  // 实际调配克数      "lot_number":
+    ""  // 药品批号，用于溯源    }, ...  ],  "total_cost": 0.0,  // 总费用（元）  "message": ""  //
+    提示信息，尤其在失败时说明原因}用户问题：我是中药房药师王明（工号 PHARM789），现在在 3 号调剂窗口，需要为病人张三（ID: PAT0012345）调配电子处方
+    CF202405200812 的中药颗粒，请执行操作。'
+  source: MedCallAPI#99
+  validity: verified
+- id: TD_direct_006
+  kind: no_tool
+  expected_action: direct
+  question: 我妈心衰，每天喝水要限制到多少？
+  source: internists#CARD_HF_01
+  validity: verified
+- id: TD_call_007
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：RequestAnestheticDrugDispensing（麻醉药品调配申请）描述：用于为特定手术申请和调配特殊麻醉药品。系统将核验手术信息、患者信息、医师资质及药品库存，生成调配指令或驳回理由。输入参数：surgery_id
+    (string，必填)：手术安排的唯一标识ID patient_id (string，必填)：患者的唯一住院号或ID anes_doctor_id (string，必填)：主麻医师的工号或唯一ID
+    drug_name (string，必填)：申请的麻醉药品标准名称（如：remifentanil, propofol）dosage (string，必填)：申请剂量及单位（如："2mg",
+    "100ml"）justification (string，可选)：特殊情况下的申请理由输出：{ "success": true, // 申请是否成功 "dispensing_id":
+    "DISP-AN-20240521-3301", // 成功后的调配单号 "message": "", // 系统返回信息，成功或失败原因 "details":
+    { // 更多细节 "pickup_location": "", // 领取地点 "pickup_window": "" // 领取时间窗口 }}用户问题：我是麻醉科医生张伟，工号是
+    M0345。现在需要为住院号为 H7890123 的患者准备手术用药，手术单号是 S202405210930A。请帮我申领 2mg 的盐酸瑞芬太尼。'
+  source: MedCallAPI#86
+  validity: verified
+- id: TD_direct_007
+  kind: no_tool
+  expected_action: direct
+  question: 心衰的病人能运动吗？还是要静养？
+  source: internists#CARD_HF_02
+  validity: verified
+- id: TD_call_008
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：ExecuteClinicalOrder（执行临床医嘱）描述：用于护士或医生执行并记录一项具体的临床医嘱，如生命体征测量、药物注射、治疗操作等。系统将记录执行人、执行时间、具体结果及任何相关备注。输入参数：order_id
+    (string，必填)：待执行医嘱的唯一标识符。patient_id (string，必填)：患者的唯一住院号或ID。executor_id (string，必填)：执行操作的医护人员工号。execution_time
+    (string，必填)：医嘱执行的精确时间，格式为 ISO 8601（例如："2024-05-21T14:00:00+08:00"）。results (list，必填)：医嘱执行的结果列表，每个结果为一对象。  -
+    item_code (string，必填)：测量或操作项的标准化代码（如 "T" 代表体温，"P" 代表脉率）。  - value (number/string，必填)：测量或操作的结果值。  -
+    unit (string，必填)：结果值的单位（如 "°C"，"次/分"）。  - method (string，可选)：测量或操作的方法（如 "axillary"
+    代表腋下测温）。notes (string，可选)：与本次执行相关的额外备注信息。输出：{  "status": "",  // 执行状态 ("success"
+    或 "error")  "message": "",  // 提示信息  "record_id": ""  // 本次执行记录的唯一ID}用户问题：护士张三报告，已为住院号为
+    89757 的患者李四执行了今天下午 2 点的体温监测医嘱（医嘱号 T-20240520-015），测量结果为腋下体温 38.5 摄氏度，患者自述有轻微畏寒。'
+  source: MedCallAPI#18
+  validity: verified
+- id: TD_direct_008
+  kind: no_tool
+  expected_action: direct
+  question: 心衰患者出现什么症状需要立即去医院？
+  source: internists#CARD_HF_03
+  validity: verified
+- id: TD_call_009
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：CreateConsultationRequest（会诊申请创建）描述：为指定患者发起一则科室间的会诊申请。系统将根据申请信息，创建会诊任务，并通知被邀科室的相应医师。输入参数：patient_id
+    (string，必填)：患者的唯一住院号或ID。requesting_department (string，必填)：发起申请的科室名称。requesting_doctor
+    (string，必填)：发起申请的医生姓名。consultation_department (string，必填)：需要会诊的科室名称。urgency_level
+    (string，必填)：紧急程度（"routine"=平会诊, "urgent"=急会诊）。consultation_reason (object，必填)：会诊事由，包含病情摘要。  chief_complaint
+    (string, 必填): 主要症状或问题。  history_of_present_illness (string, 必填): 简要病史和诊疗经过。  key_findings
+    (string, 必填): 关键体格检查或辅助检查发现。specific_questions (list，必填)：需要会诊科室解答的具体问题列表。输出：{  "request_id":
+    "",  // 本次会诊申请的唯一ID  "status": "",  // 申请的当前状态（例如："pending_acceptance"）  "message":
+    ""  // 系统提示信息}用户问题：急诊科王医生，帮我为 3 床的患儿（住院号 2024052001）发起一个到小儿科的急会诊。这个孩子 5 岁，持续高热
+    5 天，体温最高 40.2℃，身上有皮疹，眼结膜充血，颈部淋巴结肿大。我怀疑是川崎病，想请小儿科明确诊断，并指导一下后续的 IVIG（静脉注射免疫球蛋白）治疗方案。麻烦尽快。'
+  source: MedCallAPI#60
+  validity: verified
+- id: TD_direct_009
+  kind: no_tool
+  expected_action: direct
+  question: 糖尿病患者能吃水果吗？
+  source: internists#ENDO_DM_01
+  validity: verified
+- id: TD_call_010
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：RequestICUBed（ICU床位申请）描述：为危重患者提交ICU床位申请。系统会校验患者信息，评估病情严重程度，并将申请推送至ICU进行审核。输入参数：patient_id
+    (string，必填)：患者的唯一住院号requesting_department (string，必填)：申请科室（例如：“急诊科”、“心内科”）requesting_doctor_id
+    (string，必填)：申请医生的工号diagnosis (string，必填)：导致需要转入ICU的主要诊断vital_signs (object，必填)：关键生命体征对象，包含：heart_rate
+    (number): 心率（次/分）respiratory_rate (number): 呼吸频率（次/分）blood_pressure (string):
+    血压（例如：“85/50 mmHg”）oxygen_saturation (number): 指脉氧饱和度（%）apache_ii_score (number，非必填)：APACHE
+    II评分，用于评估病情严重程度urgency_level (string，必填)：紧急程度（"critical"=危急, "urgent"=紧急）special_requirements
+    (list，非必填)：特殊要求（例如：["negative_pressure_room", "dialysis_machine"]）输出：{  "request_id":
+    "",  // 申请单的唯一标识符  "status": "",  // 申请的初始状态，如 "pending_review"（待审核）  "message":
+    ""  // 系统返回的确认信息}用户问题：我是急诊科的李医生，工号 10235。病人张三，住院号 HOS_12345678，诊断为急性重症胰腺炎，目前心率
+    130 次/分，呼吸 28 次/分，血压掉到 85/50 mmHg，指脉氧饱和度只有 90%。病情危急，需要立刻转入 ICU。APACHE II 评分 25
+    分。麻烦紧急处理。'
+  source: MedCallAPI#103
+  validity: verified
+- id: TD_direct_010
+  kind: no_tool
+  expected_action: direct
+  question: 我爸糖尿病，出汗多、手抖、心跳快，这是什么情况？
+  source: internists#ENDO_DM_02
+  validity: verified
+- id: TD_call_011
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：PrepareChemotherapyDrugs（化疗药物调配准备）描述：供静脉药物配置中心（PIVAS）使用，根据已审核的医嘱信息，为指定患者准备化疗药物。系统将自动计算体表面积（BSA）及各药物精确剂量，并生成包含溶媒、终浓度、输注时间及安全警示的调配指令和标签信息。输入参数：patient_id
+    (string，必填)：患者唯一住院号。order_id (string，必填)：本次化疗的医嘱唯一标识。protocol_name (string，必填)：化疗方案名称（例如："FOLFOX6",
+    "R-CHOP"）。patient_height_cm (number，必填)：患者身高（厘米）。patient_weight_kg (number，必填)：患者体重（公斤）。special_instructions
+    (string，选填)：医师特殊说明，如剂量调整百分比等。requesting_department (string，必填)：申请调配的科室。输出：{  "preparation_id":
+    "",  // 本次调配任务的唯一ID  "patient_info": {    "id": "",  // 患者住院号    "name": "", //
+    患者姓名（脱敏）    "bsa_m2": 0.0 // 计算得出的体表面积（平方米）  },  "drugs_to_prepare": [    {      "drug_name":
+    "",  // 药物名称      "calculated_dose_mg": 0.0,  // 计算后的精确剂量（毫克）      "diluent":
+    "",  // 推荐溶媒      "final_volume_ml": 0,  // 溶解后最终液体体积（毫升）      "infusion_time_minutes":
+    0  // 建议输注时长（分钟）    }, ...  ],  "label_content": "", // 用于打印在输液袋上的标签内容（文本）  "safety_warnings":
+    [] // 安全操作警示列表}用户问题：请为住院号为 8975421 的患者林先生准备化疗药物。医嘱号是 20240520-CHEM-011，采用的是 FOLFOX6
+    方案。患者最新的身高是 175cm，体重 70kg。医生特别嘱咐，本次奥沙利铂剂量减少 15%。我们是肿瘤内科一病区。'
+  source: MedCallAPI#80
+  validity: verified
+- id: TD_direct_011
+  kind: no_tool
+  expected_action: direct
+  question: 糖尿病患者的血糖控制目标是多少？
+  source: internists#ENDO_DM_03
+  validity: verified
+- id: TD_call_012
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：CreateTransferHandoverReport（创建转科交接报告）描述：为转科患者生成并流转电子交接报告。系统将根据传入的患者信息、转出/转入科室、交接内容，自动从电子病历系统（EMR）中提取必要的临床数据，生成标准化报告，并推送至目标科室的医护工作站。输入参数：patient_id
+    (string，必填)：患者唯一住院号。source_department_id (string，必填)：转出科室的唯一ID。destination_department_id
+    (string，必填)：转入科室的唯一ID。transfer_reason (string，必填)：转科的主要临床原因和目的。initiating_doctor_id
+    (string，必填)：发起转科申请的医生ID。urgency_level (string，选填)：紧急程度，可选值为 "routine"（常规）或 "urgent"（紧急），默认为
+    "routine"。handover_content (object，选填)：补充交接内容，若不提供，则系统完全自动从EMR抓取。可包含：diagnosis
+    (string): 补充诊断信息。nursing_notes (string): 特别护理嘱托。key_lab_results (list): 需要特别强调的检验检查结果。输出：{  "success":
+    true,  // 操作是否成功  "report_id": "TR-20240521-0034",  // 生成的报告唯一ID  "message": "已成功为患者XX创建转往XX科的交接报告，并已发送至目标科室工作站。"}用户问题：立刻给心内科CCU病房的张伟（住院号：330125）办转科，他急性心梗已经完成介入治疗，现在病情稳定了，准备转到普通心血管内科病房继续康复治疗。我是主治医生李明（工号
+    D5873），这件事比较急，你帮我把交接报告发过去。'
+  source: MedCallAPI#140
+  validity: verified
+- id: TD_direct_012
+  kind: no_tool
+  expected_action: direct
+  question: 糖尿病足怎么护理？
+  source: internists#ENDO_DM_04
+  validity: verified
+- id: TD_call_013
+  kind: needs_tool
+  expected_action: call
+  question: 'API 描述：ExecutePCAPumpOrder（镇痛泵医嘱执行）描述：根据已开立的镇痛泵使用医嘱，关联具体患者、设备和药物参数，执行启动镇痛泵的操作。此操作将记录执行人、时间，并激活设备监控。输入参数：order_id
+    (string，必填)：电子医嘱的唯一标识符。patient_id (string，必填)：患者的住院号或唯一身份标识。device_sn (string，必填)：镇痛泵设备的序列号。drug_name
+    (string，必填)：泵内装载的镇痛药物通用名。concentration (number，必填)：药物浓度。unit (string，必填)：浓度单位（如："mg/mL"）。background_infusion_rate
+    (number，必填)：背景持续输注速率（单位：mL/h）。pca_bolus_dose (number，必填)：单次自控给药剂量（单位：mL）。lockout_interval
+    (number，必填)：自控给药后的锁定时间（单位：分钟）。max_dose_limit_4h (number，必填)：4小时内最大给药总量限制（单位：mL）。operator_id
+    (string，必填)：执行操作的护士或麻醉师的工号。输出：{  "success": true,  // 操作是否成功  "execution_id":
+    "", // 本次执行操作的唯一记录ID  "message": "" // 返回信息，如成功提示或错误详情}用户问题：护士站，我是麻醉科王医生。请给 3
+    床的李四（住院号 2024052003）执行术后镇痛泵医嘱。医嘱号是 YZ987654321。我们用的是序列号为 PCA-SN-11223344 的镇痛泵，里面是
+    0.02mg/mL 的芬太尼。参数设置如下：背景剂量 1mL/h，单次按压剂量 0.5mL，锁定时间 15 分钟，4 小时限量 10mL。执行护士是张静，工号
+    N00789。'
+  source: MedCallAPI#24
+  validity: verified
+- id: TD_direct_013
+  kind: no_tool
+  expected_action: direct
+  question: 糖尿病要定期做哪些检查？
+  source: internists#ENDO_DM_05
+  validity: verified
+- id: TD_call_014
+  kind: needs_tool
+  expected_action: call
+  question: "API 描述：RoutePrenatalScreeningReport（产前筛查报告流转）\n描述：根据产前筛查报告（如唐氏筛查、无创 DNA）的关键信息，自动将其流转至指定的系统或人员。系统能根据报告结果的风险等级（如低风险、高风险）执行不同的流转规则，例如：低风险报告仅归档至电子病历（EHR）并通知开单医生；高风险报告除了归档和通知外，还需立即推送给高危门诊团队，并自动创建遗传咨询预约任务。\n\
+    输入参数：\nreport_id (string，必填)：报告的唯一标识符。\npatient_id (string，必填)：患者的唯一标识符。\nreport_type\
+    \ (string，必填)：报告类型（\"down_screening\"=唐氏筛查，\"nipt\"=无创 DNA）。\nresult_status (string，必填)：结果风险等级（\"\
+    low_risk\"=低风险，\"high_risk\"=高风险）。\nordering_physician_id (string，必填)：开单医生的工号。\n\
+    report_content_url (string，必填)：报告 PDF 或结构化内容的访问链接。\nnotes (string，选填)：附加说明。\n\
+    输出：\n{\n  \"status\": \"\",  // 处理状态（\"success\" 或 \"failure\"）\n  \"message\"\
+    : \"\",  // 处理结果消息\n  \"routing_details\": [  // 具体的流转路径详情\n    {\n      \"destination_type\"\
+    : \"\",  // 目标类型（如 \"ehr\", \"physician_inbox\", \"referral_queue\"）\n      \"\
+    destination_id\": \"\",  // 目标标识（如病历号、医生工号、队列名称）\n      \"status\": \"\"  // 该路径的流转状态\n\
+    \    }, ...\n  ],\n  \"timestamp\": \"\"  // 操作时间戳\n}\n用户问题：\n产科检验室刚出的唐氏筛查报告，报告编号\
+    \ DS20240520008，患者张丽（ID: 320100199003081234），结果为高风险。开单医生是产科的王医生（工号 00897），请把报告分发到他那里，并自动生成一个高危门诊的转诊申请。报告文件在内网的\
+    \ /reports/DS20240520008.pdf。"
+  source: MedCallAPI#136
+  validity: verified
+- id: TD_direct_014
+  kind: no_tool
+  expected_action: direct
+  question: 慢阻肺患者能做什么运动？
+  source: internists#RESP_COPD_01
+  validity: verified
