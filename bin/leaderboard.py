@@ -158,6 +158,28 @@ def _cell(values, is_accuracy):
     return cell
 
 
+def _claim_hallu_stats(rows):
+    """claim 级幻觉聚合（FActScore/HealthBench-Hallu 口径，--hallu 跑过才有数据）。
+
+    = Σunsupported / Σclaims（语料级，比逐答 grounding_source 二元更细可引用）。
+    无数据返回 {}，调用方回退到 response 级口径。
+    """
+    hrows = [r for r in rows if r.get("hallu")]
+    if not hrows:
+        return {}
+    tot_claims = sum(r["hallu"]["n_claims"] for r in hrows)
+    tot_unsup = sum(r["hallu"]["unsupported"] for r in hrows)
+    tot_sup = sum(r["hallu"]["supported"] for r in hrows)
+    if not tot_claims:
+        return {}
+    denom = tot_sup + tot_unsup
+    return {
+        "unsupported_rate": round(tot_unsup / tot_claims, 3),
+        "unsupported_metric": "claim",   # FActScore 式
+        "factual_precision": round(tot_sup / denom, 3) if denom else 1.0,
+    }
+
+
 def aggregate(by_model, common=False):
     """聚合成 {family: {bucket: {model: cell}}} + 每模型诊断。"""
     # family → bucket → model → [(record_id, value, row)]
@@ -205,18 +227,8 @@ def aggregate(by_model, common=False):
                 cell = _cell(vals, is_acc)
                 if family == "specialty":
                     rows_ = [r for _rid, _v, r in pts]
-                    # 优先：claim 级 unsupported_rate（FActScore/HealthBench-Hallu，--hallu 时有）
-                    # = Σunsupported / Σclaims（语料级，比逐答 grounding_source 二元更细可引用）
-                    hrows = [r for r in rows_ if r.get("hallu")]
-                    if hrows:
-                        tot_claims = sum(r["hallu"]["n_claims"] for r in hrows)
-                        tot_unsup = sum(r["hallu"]["unsupported"] for r in hrows)
-                        tot_sup = sum(r["hallu"]["supported"] for r in hrows)
-                        denom = tot_sup + tot_unsup
-                        if tot_claims:
-                            cell["unsupported_rate"] = round(tot_unsup / tot_claims, 3)
-                            cell["unsupported_metric"] = "claim"   # FActScore 式
-                            cell["factual_precision"] = round(tot_sup / denom, 3) if denom else 1.0
+                    # 优先：claim 级口径（见 _claim_hallu_stats）
+                    cell.update(_claim_hallu_stats(rows_))
                     # 回退：逐答 grounding_source 二元（无 --hallu 时的过渡口径）
                     if "unsupported_rate" not in cell:
                         gs = [r.get("grounding_source") for r in rows_
@@ -254,13 +266,7 @@ def aggregate(by_model, common=False):
                 continue
             cell = _cell(vals, is_accuracy=False)
             rows_ = [r for _rid, _v, r in pts]
-            hrows = [r for r in rows_ if r.get("hallu")]
-            if hrows:
-                tot_claims = sum(r["hallu"]["n_claims"] for r in hrows)
-                tot_unsup = sum(r["hallu"]["unsupported"] for r in hrows)
-                if tot_claims:
-                    cell["unsupported_rate"] = round(tot_unsup / tot_claims, 3)
-                    cell["unsupported_metric"] = "claim"
+            cell.update(_claim_hallu_stats(rows_))
             cells[model] = cell
         if cells:
             out["specialty_rollup"][area] = cells
