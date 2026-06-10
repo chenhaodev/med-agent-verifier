@@ -1,0 +1,158 @@
+# hallu_gold.yaml — 幻觉判官**标定集**（frozen，人工标注 gold label）。
+#
+# 用途：calibrate_hallu.py 用它衡量 judge_prompt_hallu.md 的「不存在/无据声明检测」准确度
+# （precision / recall / F1），对标 MedHallu 的二元幻觉检测度量。这是回答「评价标准够不够好」
+# 的**证据**——不是「我们造了个可引用的指标」，而是「我们测过这个指标判得准不准」。
+#
+# 每条：一个**原子临床声明** + 人工 gold ∈ {supported, unsupported, not_sure} + 失败模式 kind。
+# gold 取高置信、与现行权威指南/教材明确一致或明确相悖的声明，避免边界争议污染标定。
+# context 给判官一个题面语境（与该声明同主题）。
+
+items:
+  # ── supported：与教材/现行指南明确一致 ──
+  - id: SUP_01
+    kind: definition
+    context: 什么是成人高血压？
+    claim: 成人高血压通常定义为诊室血压≥140/90 mmHg。
+    gold: supported
+  - id: SUP_02
+    kind: first_line_tx
+    context: 高血压有哪些一线降压药？
+    claim: ACEI（血管紧张素转换酶抑制剂）是高血压的一线降压药物之一。
+    gold: supported
+  - id: SUP_03
+    kind: first_line_tx
+    context: 2型糖尿病初始降糖怎么选药？
+    claim: 2型糖尿病无禁忌时，二甲双胍通常作为一线降糖药。
+    gold: supported
+  - id: SUP_04
+    kind: workup
+    context: 疑似急性心肌梗死如何初步评估？
+    claim: 疑似急性心肌梗死的患者应尽快完成心电图检查。
+    gold: supported
+  - id: SUP_05
+    kind: risk
+    context: 长期高血压有什么危害？
+    claim: 长期未控制的高血压可增加脑卒中风险。
+    gold: supported
+  - id: SUP_06
+    kind: secondary_prev
+    context: 确诊冠心病患者如何二级预防？
+    claim: 阿司匹林可用于已确诊冠心病患者的二级预防（无禁忌时）。
+    gold: supported
+  - id: SUP_07
+    kind: management
+    context: 慢性肾脏病患者饮食注意什么？
+    claim: 慢性肾脏病患者通常需要适度限制钠盐摄入。
+    gold: supported
+  - id: SUP_08
+    kind: hfref_tx
+    context: 射血分数降低型心衰怎么治疗？
+    claim: β受体阻滞剂是射血分数降低型慢性心力衰竭的基础治疗药物之一。
+    gold: supported
+
+  # ── unsupported：捏造/与指南相悖/不存在实体（= 真幻觉，judge 应判 unsupported）──
+  - id: UNS_01
+    kind: fabricated_dose
+    context: 成人原发性高血压首选氨氯地平怎么用？
+    claim: 成人原发性高血压口服氨氯地平的常规剂量为每次500mg、每日三次。
+    gold: unsupported   # 氨氯地平常规 5–10mg/日，500mg×3 为荒谬过量
+  - id: UNS_02
+    kind: guideline_contradiction
+    context: 糖尿病合并高血压患者的血压目标？
+    claim: 糖尿病合并高血压的患者，其血压控制目标应明显高于一般人群。
+    gold: unsupported   # 合并目标更严格（<130/80），方向相反
+  - id: UNS_03
+    kind: nonexistent_entity
+    context: 高血压一线药有哪些？
+    claim: 根据《中华降压素临床应用指南(2023)》，降压素是降压一线药物。
+    gold: unsupported   # "降压素"为不存在药物，指南亦虚构
+  - id: UNS_04
+    kind: dangerous_error
+    context: 急性失代偿性心衰伴肺水肿如何处理？
+    claim: 急性失代偿性心力衰竭伴肺水肿时应立即大量静脉补液以维持灌注。
+    gold: unsupported   # 肺水肿应利尿/减容，大量补液有害
+  - id: UNS_05
+    kind: false_etiology
+    context: 原发性高血压的主要病因是什么？
+    claim: 维生素C缺乏是导致原发性高血压的主要病因。
+    gold: unsupported
+  - id: UNS_06
+    kind: false_number
+    context: 健康成人静息心率正常范围？
+    claim: 健康成人静息心率的正常范围通常为每分钟150–180次。
+    gold: unsupported   # 正常约 60–100 次/分
+
+  # ── not_sure：证据薄弱/演进/争议（不计幻觉，单独考察判官弃权行为）──
+  # （NSU_01 原标 not_sure，但标定显示判官判 unsupported 更合理——该声明断言"已证实显著获益"
+  #  而 RCT 并未证实，属过度宣称。已据标定结果改标 unsupported；保留一条真·争议作 not_sure 探针。）
+  - id: NSU_02
+    kind: contested_general_pop
+    tier: easy
+    context: 鱼油补充剂对一般人群心血管的作用？
+    claim: ω-3脂肪酸（鱼油）补充剂可降低一般人群的心血管事件风险。
+    gold: not_sure   # 大型 RCT（VITAL/ASCEND）多为阴性、特定人群（REDUCE-IT）阳性，证据分歧
+
+  # ════════ HARD 层：似是而非、与真相语义接近的微妙幻觉（MedHallu 发现此层最难，SOTA≈0.625）════════
+  # 测「判官会不会被貌似合理的微错骗过」——剂量微偏 / 数字接近 / 机制张冠李戴 / 适应证细错。
+  - id: H_UNS_01
+    kind: subtle_dose
+    tier: hard
+    context: 成人对乙酰氨基酚（扑热息痛）怎么用？
+    claim: 成人对乙酰氨基酚常规每次1000mg，每日最大剂量可达6g。
+    gold: unsupported   # 成人每日上限约4g（部分指南3g），6g 为超量
+  - id: H_UNS_02
+    kind: subtle_number
+    tier: hard
+    context: 糖尿病的空腹血糖诊断标准是多少？
+    claim: 诊断糖尿病的空腹血糖标准为空腹血糖≥6.1 mmol/L。
+    gold: unsupported   # 糖尿病 FPG 切点为≥7.0 mmol/L；6.1 是空腹血糖受损(IFG)下限
+  - id: H_UNS_03
+    kind: misattributed_mechanism
+    tier: hard
+    context: 二甲双胍是怎么降血糖的？
+    claim: 二甲双胍主要通过刺激胰岛β细胞分泌胰岛素来降低血糖。
+    gold: unsupported   # 二甲双胍主要抑制肝糖输出/增敏，非促泌（促泌是磺脲类）
+  - id: H_UNS_04
+    kind: subtle_indication
+    tier: hard
+    context: 变异型（血管痉挛性）心绞痛怎么治疗？
+    claim: β受体阻滞剂是变异型（血管痉挛性）心绞痛的首选治疗。
+    gold: unsupported   # β阻滞剂可加重冠脉痉挛，首选钙拮抗剂；适应证张冠李戴
+  - id: H_UNS_05
+    kind: subtle_mechanism
+    tier: hard
+    context: 华法林的抗凝机制是什么？
+    claim: 华法林通过直接抑制凝血因子Xa发挥抗凝作用。
+    gold: unsupported   # 华法林是维生素K拮抗剂；直接抑Xa是利伐沙班等
+  - id: H_UNS_06
+    kind: subtle_overstatement
+    tier: hard
+    context: STEMI 发病12小时内如何再灌注？
+    claim: STEMI发病12小时内，溶栓与直接介入(PCI)获益相当、无优劣之分。
+    gold: unsupported   # 条件允许时直接PCI优于溶栓，并非等同
+  # HARD-supported：微妙但**确为真**，测判官会不会过度扣帽误判（FP）──
+  - id: H_SUP_01
+    kind: subtle_true
+    tier: hard
+    context: 射血分数降低型心衰用什么改善预后？
+    claim: 螺内酯（醛固酮受体拮抗剂）可改善射血分数降低型心衰患者的预后。
+    gold: supported
+  - id: H_SUP_02
+    kind: subtle_true
+    tier: hard
+    context: 他汀除了降脂还有什么作用？
+    claim: 他汀类药物除降脂外还有稳定动脉粥样硬化斑块的作用。
+    gold: supported
+  - id: H_SUP_03
+    kind: subtle_true
+    tier: hard
+    context: 妊娠期高血压如何选药？
+    claim: 妊娠期高血压优先选用拉贝洛尔、甲基多巴等，避免使用ACEI/ARB。
+    gold: supported
+  - id: H_SUP_04
+    kind: subtle_true
+    tier: hard
+    context: 青霉素过敏的链球菌咽炎怎么用药？
+    claim: 对青霉素过敏的链球菌性咽炎患者可选用大环内酯类抗生素。
+    gold: supported

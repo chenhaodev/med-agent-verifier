@@ -273,6 +273,7 @@ python3 bin/gen_probes.py          # 冻结探针集（nonexistent=verified；fa
 # E2·原子声明级幻觉（对标文献：FActScore / HealthBench-Hallu）：把回答拆成原子临床声明逐条核查
 ./bin/eval.sh --track book --hallu --model qwen3.5    # → claim 级 unsupported_rate + factual_precision（not_sure 弃权不计幻觉）
 python3 bin/specialty_report.py                       # 专科覆盖盘点（judge-free，零预算）：内科▸system▸domain / 精神科▸DSM
+python3 bin/calibrate_hallu.py                        # 标定幻觉判官检测准确度（MedHallu 式 P/R/F1，含 hard 微妙幻觉层）→ 见 eval/METRICS.md
 
 # F·编排能力（MoA 主模型技能）：选择科室 + 是否调用工具
 python3 bin/eval_routing.py --model qwen3.5                 # 专科路由准确率（judge-free，零 DeepSeek）

@@ -39,6 +39,7 @@ B=$(python3 "$SCRIPT_DIR/load_dataset.py" --track book --count 2>/dev/null || ec
 # 3) judge 资产存在（含 TASK2 新增的 probe/TIA/freshness rubric）
 for f in eval/judge_prompt.md eval/judge_prompt_reference.md eval/judge_prompt_probe.md \
          eval/judge_prompt_tia.md eval/judge_prompt_freshness.md eval/judge_prompt_hallu.md \
+         eval/calibration/hallu_gold.yaml eval/METRICS.md \
          bin/parse_judge.py bin/parse_hallu.py; do
   [[ -s "$ROOT_DIR/$f" ]] && pass "$f 存在" || fail "$f 缺失"
 done
@@ -52,7 +53,7 @@ fi
 
 # 5) TASK2 特性脚本健全性（零 judge 预算：仅语法/解析/loader）
 for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing parse_choice \
-         freshness_audit parse_hallu specialty_map specialty_report; do
+         freshness_audit parse_hallu specialty_map specialty_report calibrate_hallu; do
   python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$ROOT_DIR/bin/$s.py" 2>/dev/null \
     && pass "bin/$s.py 语法 ok" || fail "bin/$s.py 语法错误"
 done
@@ -65,6 +66,19 @@ python3 "$SCRIPT_DIR/leaderboard.py" >/dev/null 2>&1 \
 # 专科覆盖盘点须能跑通（顺带验证兄弟 gold 经 load_dataset 可读）
 python3 "$SCRIPT_DIR/specialty_report.py" >/dev/null 2>&1 \
   && pass "specialty_report.py 专科盘点 ok" || fail "specialty_report.py 失败"
+# 幻觉判官标定集 schema + calibrate metrics 离线自检（零 judge 预算）
+python3 - "$ROOT_DIR" <<'PYEOF' && pass "hallu_gold schema + calibrate metrics ok" || fail "hallu 标定自检失败"
+import os, sys, yaml
+root = sys.argv[1]
+items = yaml.safe_load(open(os.path.join(root, "eval", "calibration", "hallu_gold.yaml")))["items"]
+assert items and all({"id", "claim", "gold"} <= set(i) for i in items), "缺字段"
+assert all(i["gold"] in ("supported", "unsupported", "not_sure") for i in items), "非法 gold"
+sys.path.insert(0, os.path.join(root, "bin"))
+import calibrate_hallu as c
+m = c.metrics([{"id": "x", "tier": "easy", "gold": "unsupported", "pred": "unsupported"},
+               {"id": "y", "tier": "easy", "gold": "supported", "pred": "supported"}])
+assert m["unsupported_detection"]["tp"] == 1 and m["accuracy_3class"] == 1.0
+PYEOF
 # 探针/工具决策 loader round-trip（确定性，无 API）
 PB=$(python3 "$SCRIPT_DIR/load_dataset.py" --track probe --count 2>/dev/null || echo -1)
 TD=$(python3 "$SCRIPT_DIR/load_dataset.py" --track tool_decision --count 2>/dev/null || echo -1)

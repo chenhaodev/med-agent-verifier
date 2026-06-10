@@ -38,6 +38,7 @@ python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect
 ./bin/eval.sh --subset mini --model qwen3.5                            # 30-question tiered mini-bench (hardest + most orthogonal)
 python3 bin/select_subset.py                                          # (re)generate eval/subsets/{mini,medium,large}.yaml
 python3 bin/specialty_report.py                                       # judge-free Track B 专科覆盖盘点（内科▸system▸domain / 精神科▸DSM，flags n<5）
+python3 bin/calibrate_hallu.py                                        # 标定幻觉判官检测准确度 vs eval/calibration/hallu_gold.yaml（MedHallu 式 P/R/F1，含 hard 层）
 # ── TASK2: leaderboard → routing, orchestrator eval, hallucination probes, live/freshness ──
 python3 bin/gen_probes.py && python3 bin/gen_tool_decision.py         # (re)generate frozen probe sets
 ./bin/eval.sh --track probe --model qwen3.5                           # E: nonexistent + false-premise hallucination probes
@@ -54,6 +55,14 @@ python3 bin/build_routing.py                                         # B: eval/r
 rollup** 内科/精神科, hallucination `unsupported_rate`) · ③ Orchestration & robustness (Accuracy %:
 routing, TIA, probes, live). The leaderboard keeps these on distinct axes; `routing_manifest.yaml`
 weights ③ above ① (contamination-resistant).
+
+**Eval-criteria validity is documented + calibrated.** See **`eval/METRICS.md`** for the per-metric
+validity writeup (what each measures → literature anchor → effect evidence → honest limitations). The
+hallucination judge is **calibrated**: `bin/calibrate_hallu.py` scores `judge_prompt_hallu.md` against a
+frozen hand-labeled set (`eval/calibration/hallu_gold.yaml`, easy + MedHallu-style *hard* subtle cases) →
+MedHallu-style unsupported-detection **P/R/F1**. Live result (deepseek-v4-flash): **F1 1.0 overall and on
+the hard tier** (subtle dose/number/mechanism/indication errors), FP=0 on subtle-true claims. Caveat: n=24
+small; the judge is conservative (flags > abstains) — the right bias for a safety metric.
 
 **Eval-criteria upgrades (literature-anchored).** The hallucination metric is now optionally measured the
 way the literature does, not just homegrown: with `--hallu`, each Track B/A answer is **decomposed into
