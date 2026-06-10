@@ -4,11 +4,12 @@
 把两路 gold 源归一化为同一条下游记录，由 `gold_type` 判别：
 
   Track A — MedBench（capability breadth）
-    medbench-agent-95/<Task>.jsonl: {question, answer, other:{id, source}}
+    data/medbench-agent-95/<Task>.jsonl: {question, answer, other:{id, source}}
     → gold_type="reference"（answer = 95 分参考答案，judge 看得到）
 
   Track B — Book gold（hallucination + specialty depth）
-    ../med-agent-internists/eval/gold.yaml (+ psy) 的 criteria 字段
+    data/book-gold/{internists,psy}.yaml（vendored 快照，bin/sync_gold.sh ← 兄弟项目）
+    的 criteria 字段
     → gold_type="criteria"（无整篇参考，按 expected_topics / must_warn /
       source_refs / must_not / patient_must_not_phrases 评判）
 
@@ -29,14 +30,30 @@ import sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 
-# Track A：MedBench Agent 数据目录（仓库内快照）
-MEDBENCH_DIR = os.path.join(ROOT_DIR, "medbench-agent-95")
+# Track A：MedBench Agent 数据目录（仓库内快照，data/ 下）
+MEDBENCH_DIR = os.path.join(ROOT_DIR, "data", "medbench-agent-95")
 
-# Track B：兄弟项目 gold（live 相对路径，单一真相源，不复制）
-BOOK_SOURCES = [
-    ("internists", os.path.join(ROOT_DIR, "..", "med-agent-internists", "eval", "gold.yaml")),
-    ("psy", os.path.join(ROOT_DIR, "..", "med-agent-psy", "eval", "gold.yaml")),
-]
+# Track B：book gold。**默认读 vendored 快照**（data/book-gold/，由 bin/sync_gold.sh 生成），
+# 让本仓自包含、可复现；快照缺席时优雅回退到兄弟 live 路径（并提示跑 sync_gold.sh）。
+VENDORED_BOOK_DIR = os.path.join(ROOT_DIR, "data", "book-gold")
+SIBLING_BOOK = {
+    "internists": os.path.join(ROOT_DIR, "..", "med-agent-internists", "eval", "gold.yaml"),
+    "psy": os.path.join(ROOT_DIR, "..", "med-agent-psy", "eval", "gold.yaml"),
+}
+
+
+def book_sources():
+    """返回 [(name, path)]：优先 vendored 快照，缺则回退兄弟 live 路径（带提示）。"""
+    out = []
+    for name in ("internists", "psy"):
+        vend = os.path.join(VENDORED_BOOK_DIR, f"{name}.yaml")
+        if os.path.exists(vend):
+            out.append((name, vend))
+        elif os.path.exists(SIBLING_BOOK[name]):
+            print(f"提示：未找到 vendored 快照 {name}.yaml，临时读兄弟 live 路径；"
+                  f"建议跑 bin/sync_gold.sh 固化快照。", file=sys.stderr)
+            out.append((name, SIBLING_BOOK[name]))
+    return out
 
 
 def _domain_of(q):
@@ -86,7 +103,7 @@ def load_book():
     import yaml  # 延迟导入：仅 Track B 需要
 
     records = []
-    for task, path in BOOK_SOURCES:
+    for task, path in book_sources():
         if not os.path.exists(path):
             print(f"警告：Track-B gold 不存在，跳过：{path}", file=sys.stderr)
             continue

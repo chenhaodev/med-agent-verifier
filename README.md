@@ -138,8 +138,8 @@
 ```mermaid
 flowchart TB
     subgraph GOLD["两路 gold（信任锚，不混同）"]
-        A["medbench-agent-95/<br/>12 任务 × 30 题<br/>95 分参考答案"]
-        B["../med-agent-internists + psy<br/>235 题 / 37 专科<br/>criteria + 禁止串"]
+        A["data/medbench-agent-95/<br/>12 任务 × 30 题<br/>95 分参考答案"]
+        B["data/book-gold/ (vendored)<br/>235 题 / 37 专科<br/>criteria + 禁止串"]
     end
     A -->|gold_type=reference| L["load_dataset.py<br/>统一化数据接口"]
     B -->|gold_type=criteria| L
@@ -183,8 +183,9 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 ```
 
 > 注：判官是**唯一的外部依赖**（DeepSeek API 密钥）；候选模型完全在本地 Ollama 上跑。
-> 诚信卷（Track B）的 gold **实时按相对路径读取**姊妹项目 `../med-agent-*/eval/gold.yaml`，不复制——
-> 单一真相源；每份结果文件都盖上 gold 来源路径，便于溯源。
+> 诚信卷（Track B）的 gold 现以**快照 vendored 进仓**（`data/book-gold/`，由 `bin/sync_gold.sh` 从姊妹
+> 项目同步、`SOURCE.md` 记录 provenance）——本仓**自包含、可复现**，姊妹缺席也能跑核心评测；姊妹更新后
+> 跑 `./bin/sync_gold.sh` 刷新即可。唯一仍需姊妹在位的是**可选**的 `--track live`（实时执行姊妹 Agent）。
 
 ### 命令行参数速查（`eval.sh`）
 
@@ -317,10 +318,12 @@ bin/            管线脚本（Bash 编排 + Python 数据活）
                 ├─ eval.sh              编排：选题 → 并发扇出 → 聚合成表（分专科/分任务/分路）
                 ├─ eval_worker.sh       单题 E2E：作答 → 幻觉检查 → 判分 → 拼结果行
                 └─ check.sh / smoke.sh  静态门禁 + E2E 冒烟（候选侧，零判官预算）
+                ├─ sync_gold.sh         vendor Track B book gold ← 姊妹项目 → data/book-gold/（可复现）
 eval/           judge_prompt.md（Track B）· judge_prompt_reference.md（Track A）
                 · task_registry.yaml（任务→指标→规约）· subsets/{mini,medium,large}.yaml（分层子集，已生成）
-                · results/（结果，git 忽略）
-medbench-agent-95/   Track A 数据：12 个任务的 .jsonl（30 题/个）+ .md 任务规约
+                · METRICS.md（指标效度）· calibration/hallu_gold.yaml（判官标定集）· results/（git 忽略）
+data/           medbench-agent-95/  Track A 数据：12 任务 .jsonl（30 题/个）+ .md 规约
+                book-gold/{internists,psy}.yaml  Track B vendored 快照 + SOURCE.md（provenance）
 .env.example    判官密钥（DEEPSEEK_*）+ 候选配置（OLLAMA_HOST/MODEL/TIMEOUT/THINK）
 ```
 

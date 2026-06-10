@@ -24,13 +24,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# 兄弟路径可经 MED_AGENT_* env 覆盖（与 sync_gold.sh 一致），默认 ../med-agent-*。
+# 注：`--track live` 是**可选**特性——它实时执行兄弟 Agent，故必须兄弟在位；
+# 核心静态 eval 已自包含（读 data/book-gold/ vendored 快照，不需要兄弟）。
 case "$AGENT" in
-  internists) SIB_DIR="$ROOT_DIR/../med-agent-internists" ;;
-  psy)        SIB_DIR="$ROOT_DIR/../med-agent-psy" ;;
+  internists) SIB_DIR="${MED_AGENT_INTERNISTS:-$ROOT_DIR/../med-agent-internists}" ;;
+  psy)        SIB_DIR="${MED_AGENT_PSY:-$ROOT_DIR/../med-agent-psy}" ;;
   *) echo "错误：--agent 须为 internists|psy（收到：$AGENT）" >&2; exit 1 ;;
 esac
 ASK="$SIB_DIR/bin/ask.sh"
-[[ -x "$ASK" ]] || { echo "错误：兄弟 ask.sh 不存在或不可执行：$ASK" >&2; exit 1; }
+[[ -x "$ASK" ]] || { echo "错误：兄弟 ask.sh 不存在或不可执行：$ASK（live 是可选特性，需兄弟在位）" >&2; exit 1; }
 
 QUESTION="$(cat)"
 [[ -n "${QUESTION// /}" ]] || { echo "错误：空问题。" >&2; exit 1; }

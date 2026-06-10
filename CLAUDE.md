@@ -10,13 +10,21 @@ two **trusted gold sources**:
 
 1. **Book-distilled "serious" agents** (Track B, `gold_type=criteria`) — the sibling projects
    `../med-agent-internists/` (Cecil internal medicine) and `../med-agent-psy/` (DSM-5 psychiatry). These
-   produce page-traceable, evidence-graded answers and serve as a high-quality reference. Read **live**
-   from `../med-agent-*/eval/gold.yaml` (no copy). Current scale: **235 questions** (183 internists +
-   52 psy) over **37 specialties** — counts grow as the siblings evolve, so verify with
-   `python3 bin/load_dataset.py --track book --count`.
+   produce page-traceable, evidence-graded answers and serve as a high-quality reference. **Vendored as a
+   snapshot** into `data/book-gold/{internists,psy}.yaml` (via `bin/sync_gold.sh`; provenance in
+   `data/book-gold/SOURCE.md`) so the repo is **self-contained and reproducible** — the loader reads the
+   snapshot and runs even with the siblings absent, falling back to the sibling live path only if a
+   snapshot is missing. Refresh after siblings evolve: `./bin/sync_gold.sh` (paths configurable via
+   `MED_AGENT_INTERNISTS`/`MED_AGENT_PSY`). Current scale: **235 questions** (183 internists + 52 psy) over
+   **37 specialties** — verify with `python3 bin/load_dataset.py --track book --count`.
 2. **MedBench Agent leaderboard outputs (95-point run)** (Track A, `gold_type=reference`) — the
-   `medbench-agent-95/` directory: reference question/answer pairs from a top-scoring Agent submission.
-   **360 records** (12 tasks × 30).
+   `data/medbench-agent-95/` directory: reference question/answer pairs from a top-scoring Agent
+   submission. **360 records** (12 tasks × 30).
+
+**Self-contained by design.** The only thing that still needs the sibling repos in `../` is the *optional*
+`--track live` dynamic eval (`bin/eval_live.sh`/`run_sibling.sh`), which executes the sibling Agent for
+fresh reference answers — it can't be vendored. All core static eval (Tracks A/B, leaderboard, hallucination,
+calibration) runs purely from `data/` + `eval/`.
 
 The core `TASK.md` design questions are now **resolved and implemented (Phase 1)**: the eval set is the two
 gold tracks above; the **unified data interface** is `bin/load_dataset.py` (normalizes both into one record
@@ -30,6 +38,7 @@ aggregate; built separately, see `TASK2.md`). Layout: `bin/` scripts + `eval/` p
 ```bash
 pip install -r requirements.txt          # only pyyaml
 cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
+./bin/sync_gold.sh                        # vendor Track B book gold → data/book-gold/ (refresh after siblings evolve; paths via MED_AGENT_* env)
 ruff check bin/*.py                       # lint: line-length 99, select E/F/I
 ./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
@@ -103,7 +112,7 @@ recall, MedEthics accuracy path (parser ready in `bin/parse_choice.py`; no jsonl
 `eval/task_registry.yaml` `pending:`), live-WebSearch freshness (currently judge-knowledge; `/autoresearch`
 upgrade), probe validity `--verify` for false-premise (currently `needs_review`, only `nonexistent` scored).
 
-## The reference dataset: `medbench-agent-95/`
+## The reference dataset: `data/medbench-agent-95/`
 
 12 MedBench **Agent**-track task datasets, **30 records each**, paired `.jsonl` (data) + `.md` (task spec).
 
@@ -162,6 +171,6 @@ See `../med-agent-internists/CLAUDE.md` for the fullest description of this shar
 
 - **Data is Chinese; no translation step.** Questions, answers, and source material are all Chinese.
 - **Immutability**: when transforming records, emit new objects — never mutate the source `.jsonl` rows.
-- **Don't conflate the two gold sources**: `medbench-agent-95/` is leaderboard reference output;
-  the `med-agent-internists/psy` agents are book-grounded. They are different trust anchors — keep them
-  distinguishable in any combined eval set.
+- **Don't conflate the two gold sources**: `data/medbench-agent-95/` is leaderboard reference output;
+  the vendored `data/book-gold/` (from the `med-agent-internists/psy` agents) is book-grounded. They are
+  different trust anchors — keep them distinguishable in any combined eval set.

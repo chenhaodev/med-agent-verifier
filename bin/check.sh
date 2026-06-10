@@ -23,7 +23,7 @@ root = sys.argv[1]
 reg = yaml.safe_load(open(os.path.join(root, "eval", "task_registry.yaml")))
 registered = set(reg.get("medbench", {}).get("tasks", {}).keys())
 on_disk = {os.path.splitext(os.path.basename(p))[0]
-           for p in glob.glob(os.path.join(root, "medbench-agent-95", "*.jsonl"))}
+           for p in glob.glob(os.path.join(root, "data", "medbench-agent-95", "*.jsonl"))}
 missing = on_disk - registered
 if missing:
     print(f"  registry 未登记：{sorted(missing)}", file=sys.stderr)
@@ -57,7 +57,7 @@ for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing par
   python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$ROOT_DIR/bin/$s.py" 2>/dev/null \
     && pass "bin/$s.py 语法 ok" || fail "bin/$s.py 语法错误"
 done
-for s in leaderboard run_sibling eval_live freshness_audit; do
+for s in leaderboard run_sibling eval_live freshness_audit sync_gold; do
   bash -n "$ROOT_DIR/bin/$s.sh" 2>/dev/null && pass "bin/$s.sh 语法 ok" || fail "bin/$s.sh 语法错误"
 done
 # leaderboard 须能在零/部分数据下解析不崩

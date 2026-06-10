@@ -10,7 +10,7 @@ defaults:
 # ── Track A：MedBench（reference 型，judge 看 95 分答案）──
 medbench:
   gold_type: reference
-  gold_glob: medbench-agent-95/*.jsonl
+  gold_glob: data/medbench-agent-95/*.jsonl
   judge_prompt: judge_prompt_reference.md
   tasks:
     MedCOT:      {capability: 多步临床推理链}
@@ -32,10 +32,10 @@ book:
   judge_prompt: judge_prompt.md
   sources:
     internists:
-      gold_file: ../med-agent-internists/eval/gold.yaml
+      gold_file: data/book-gold/internists.yaml   # vendored 快照（bin/sync_gold.sh ← ../med-agent-internists）
       capability: 内科（西氏内科精要）多专科
     psy:
-      gold_file: ../med-agent-psy/eval/gold.yaml
+      gold_file: data/book-gold/psy.yaml           # vendored 快照（bin/sync_gold.sh ← ../med-agent-psy）
       capability: 精神科（DSM-5）多领域
 
 # ── 编排能力（Accuracy 度量族，family-3；MoA 主模型选型依据）──
@@ -92,4 +92,4 @@ pending:
   MedEthics:
     metric: accuracy
     parser: parse_choice.py    # 已实现（routing 复用），待 MedEthics.jsonl 数据
-    note: medbench-agent-95/MedEthics.md 存在但无 .jsonl 数据
+    note: data/medbench-agent-95/MedEthics.md 存在但无 .jsonl 数据
