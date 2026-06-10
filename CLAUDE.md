@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A **medical-capability verifier / evaluation harness** for **local Ollama models** (Chinese-language
-medical tasks). The goal (`TASK.md`) is to measure how well local models do on medicine, scored against
+medical tasks). The goal (original briefs ingested below, § Original task briefs) is to measure how well
+local models do on medicine, scored against
 two **trusted gold sources**:
 
 1. **Book-distilled "serious" agents** (Track B, `gold_type=criteria`) — the sibling projects
@@ -26,13 +27,13 @@ two **trusted gold sources**:
 fresh reference answers — it can't be vendored. All core static eval (Tracks A/B, leaderboard, hallucination,
 calibration) runs purely from `data/` + `eval/`.
 
-The core `TASK.md` design questions are now **resolved and implemented (Phase 1)**: the eval set is the two
+The core Phase-1 design questions are now **resolved and implemented**: the eval set is the two
 gold tracks above; the **unified data interface** is `bin/load_dataset.py` (normalizes both into one record
 discriminated by `gold_type`); **controllable subsets** are `--track/--task/--domain/--id/--limit/--sample`.
 
 **Status: Phase 1 + TASK2 built & verified** — bash-orchestrated, LLM-as-a-Judge. The verifier produces a
 **cross-model leaderboard** over local Ollama models that later feeds an **offline MoA** (route-to-top-k +
-aggregate; built separately, see `TASK2.md`). Layout: `bin/` scripts + `eval/` prompts & registry. See
+aggregate; built separately, see the TASK2 brief below). Layout: `bin/` scripts + `eval/` prompts & registry. See
 `README.md` for the full picture. Key commands:
 
 ```bash
@@ -113,6 +114,35 @@ inference system itself consumes `routing_manifest.yaml` and is **built separate
 recall, MedEthics accuracy path (parser ready in `bin/parse_choice.py`; no jsonl yet — see
 `eval/task_registry.yaml` `pending:`), live-WebSearch freshness (currently judge-knowledge; `/autoresearch`
 upgrade), probe validity `--verify` for false-premise (currently `needs_review`, only `nonexistent` scored).
+
+## Original task briefs (formerly `TASK.md` / `TASK2.md`, ingested verbatim then removed)
+
+**Phase 1 brief (was `TASK.md`)** — the founding question; everything in "What this is" answers it:
+
+> 我想测一测本地ollama模型在医疗方面的能力。这里，我信任书本蒸馏得到的严肃智能体
+> (../med-agent-internists, ../med-agent-psy/) 和当前MedBench打榜成果 (Agent榜单95分,
+> medbench-agent-95/)。
+>
+> 那么如何建立一个评测集？统一化数据接口标准？可控/可控子集？
+
+**TASK2 brief (was `TASK2.md`)** — the extension that produced leaderboard → routing → offline MoA:
+
+> Ive finished TASK.md, that use a "book (../med-agent-internists)" and benchmark (Medbench-agent) to
+> verify ollama models' correctness etc.
+>
+> Now, with this eval-tool, I can select the "right model for the right task", and I can integrate them
+> as a system using ollama but NOT relying on APIs anymore.
+>
+> For above my extended goal, how shall I upgrade this eval-tool / this repo? Example: the "book
+> (../med-agent-internists)" maybe old-knowledge, and I may consider /autoresearch + websearch as
+> compensation solution. NOTE: maybe eval-tool shall be dynamic sometimes, running
+> ../med-agent-internists for specific-disease QnA -- compare with ../med-agent-internists output etc
+>
+> NOTE: To be clear, verifier/judge should be DeepSeek -- but once finished eval on ollama LLMs, I will
+> have leadboard on them, and I can use this info to build my offline llms (MOA) solution later-on
+
+Both briefs are fully implemented (see Status above); "TASK2" survives as the name of the
+leaderboard/routing/probe/live feature family in scripts and docs.
 
 ## The reference dataset: `data/medbench-agent-95/`
 
