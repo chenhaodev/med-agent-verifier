@@ -11,7 +11,8 @@
     0  成功（从 claims 数组或汇总字段恢复出自洽计数）。
     3  无法提取任何 claim/计数 → 调用方可据此用 --no-cache 重跑判官一次。
 
-设计：与 parse_judge.py 同源——严格 json.loads → 配平截取 → claims 数组兜底重算。
+设计：与 parse_judge.py 同源——严格 json.loads → 配平截取 → claims 数组兜底重算
+（配平截取 extract_balanced / 严格解析 strict_parse 直接复用 parse_judge）。
 计数以 **claims 数组实际 verdict 为准**（判官自报的 supported/unsupported 可能与数组不一致），
 数组不可用时才退回判官自报的汇总字段。rate/precision 一律由计数**重算**，不信任判官算术。
 """
@@ -19,47 +20,9 @@ import json
 import re
 import sys
 
+from parse_judge import extract_balanced, strict_parse
+
 _VERDICTS = ("supported", "unsupported", "not_sure")
-
-
-def _extract_balanced(text):
-    """从首个 '{' 起按括号配平截取 JSON 对象子串（尊重字符串与转义）。"""
-    start = text.find("{")
-    if start < 0:
-        return None
-    depth = 0
-    in_str = False
-    esc = False
-    for i in range(start, len(text)):
-        c = text[i]
-        if esc:
-            esc = False
-            continue
-        if c == "\\":
-            esc = True
-            continue
-        if c == '"':
-            in_str = not in_str
-            continue
-        if in_str:
-            continue
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return text[start : i + 1]
-    return text[start:]
-
-
-def _strict_parse(obj_str):
-    """严格 json.loads + 一次轻量修复（去尾随逗号）。成功返回对象，否则 None。"""
-    for cand in (obj_str, re.sub(r",(\s*[}\]])", r"\1", obj_str)):
-        try:
-            return json.loads(cand)
-        except json.JSONDecodeError:
-            continue
-    return None
 
 
 def _norm_verdict(v):
@@ -119,13 +82,13 @@ def _rates(counts):
 def parse(raw):
     """返回 (result_dict, ok)。ok=False 表示无法提取任何声明，建议重跑判官。"""
     raw = (raw or "").strip()
-    obj_str = _extract_balanced(raw)
+    obj_str = extract_balanced(raw)
     flags = []
     claims = []
     counts = None
 
     if obj_str:
-        data = _strict_parse(obj_str.replace("\n", " ").replace("\r", " "))
+        data = strict_parse(obj_str.replace("\n", " ").replace("\r", " "))
         if isinstance(data, dict):
             flags = list(data.get("flags", []) or [])
             arr = data.get("claims")

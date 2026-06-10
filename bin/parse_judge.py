@@ -24,12 +24,14 @@ DIMS = ("coverage", "accuracy", "safety", "grounding")
 _SCORE_KEYS = ("score", "得分", "分数", "评分", "rating", "value")
 
 
-def _extract_balanced(text):
+def extract_balanced(text):
     """从首个 '{' 起按括号配平截取 JSON 对象子串（尊重字符串与转义）。
 
     对良构字符串可精确定位对象边界，避免贪婪 `\\{.*\\}` 把尾随散文一并吞入。
     若字符串内有未转义引号导致配平错乱，返回值仍会让 json.loads 失败，
     从而落到正则兜底——是安全的。
+
+    公共 API：parse_hallu.py 复用本函数与 strict_parse（同源解析管线）。
     """
     start = text.find("{")
     if start < 0:
@@ -59,7 +61,7 @@ def _extract_balanced(text):
     return text[start:]  # 未配平（疑似截断）→ 返回剩余部分交给后续兜底
 
 
-def _strict_parse(obj_str):
+def strict_parse(obj_str):
     """严格 json.loads + 一次轻量修复（去尾随逗号）。成功返回 dict，否则 None。"""
     candidates = [obj_str, re.sub(r",(\s*[}\]])", r"\1", obj_str)]
     for cand in candidates:
@@ -175,14 +177,14 @@ def _seeks_clarification(raw):
 def parse(raw):
     """返回 (result_dict, ok)。ok=False 表示分数不可信，建议重跑判官。"""
     raw = (raw or "").strip()
-    obj_str = _extract_balanced(raw)
+    obj_str = extract_balanced(raw)
     gsrc = _grounding_source(raw)  # E1：可加性，与四维 ok 判定解耦
     ctx = _context_awareness(raw)  # HealthBench context-awareness：附加，不计入 40
     seek = _seeks_clarification(raw)
 
     if obj_str:
         normalized = obj_str.replace("\n", " ").replace("\r", " ")
-        data = _strict_parse(normalized)
+        data = strict_parse(normalized)
         if data is not None:
             strict = {d: _score_of(data, d) for d in DIMS}
             # 仅当四维分数**全部成功提取**才采信严格解析结果。
