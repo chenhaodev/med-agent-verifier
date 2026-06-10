@@ -13,3 +13,4 @@ __pycache__/
 .DS_Store
 .loop/
 eval/calibration/last_report.json
+*.log

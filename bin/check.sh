@@ -85,6 +85,17 @@ TD=$(python3 "$SCRIPT_DIR/load_dataset.py" --track tool_decision --count 2>/dev/
 [[ "$PB" -ge 0 ]] && pass "probe loader ok（$PB 条 verified）" || fail "probe loader 失败"
 [[ "$TD" -ge 0 ]] && pass "tool_decision loader ok（$TD 条）" || fail "tool_decision loader 失败"
 
+# 6) 单元测试套件（stdlib unittest，零外部依赖、零 judge 预算）
+if [[ -d "$ROOT_DIR/tests" ]]; then
+  if T_OUT=$(cd "$ROOT_DIR" && python3 -m unittest discover -s tests 2>&1); then
+    N=$(printf '%s' "$T_OUT" | grep -oE 'Ran [0-9]+' | grep -oE '[0-9]+' || echo "?")
+    pass "单元测试通过（$N 用例）"
+  else
+    printf '%s\n' "$T_OUT" | tail -5 >&2
+    fail "单元测试失败"
+  fi
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━"
 [[ $RC -eq 0 ]] && echo "✓ 全部门禁通过，可运行 eval.sh" || echo "✗ 存在未通过门禁" >&2
 exit $RC

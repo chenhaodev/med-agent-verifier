@@ -36,10 +36,12 @@ aggregate; built separately, see `TASK2.md`). Layout: `bin/` scripts + `eval/` p
 `README.md` for the full picture. Key commands:
 
 ```bash
-pip install -r requirements.txt          # only pyyaml
+make help                                 # discoverable entry point: sync/check/test/lint/eval/leaderboard/calibrate/specialty/clean
+pip install -r requirements.txt          # only pyyaml  (= make install)
 cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
-./bin/sync_gold.sh                        # vendor Track B book gold → data/book-gold/ (refresh after siblings evolve; paths via MED_AGENT_* env)
-ruff check bin/*.py                       # lint: line-length 99, select E/F/I
+./bin/sync_gold.sh                        # vendor Track B book gold → data/book-gold/ (= make sync; paths via MED_AGENT_* env)
+python3 -m unittest discover -s tests     # 22-test stdlib suite (= make test; also run inside check.sh)
+ruff check bin/*.py tests/                # lint: line-length 99, select E/F/I (= make lint)
 ./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
 ./bin/eval.sh --track both --sample 3 --model qwen3.5                  # run: candidate (Ollama) → halluc check → judge (DeepSeek) → 0–40
