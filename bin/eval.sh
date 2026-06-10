@@ -8,12 +8,13 @@
 #
 # 选项：
 #   --subset mini|medium|large   命名分层子集（eval/subsets/*.yaml，由 select_subset.py 生成）
-#   --track book|medbench|both   --task T1,T2   --domain S1,S2（仅 Track B）
+#   --track book|medbench|both|probe|tool_decision   --task T1,T2   --domain S1,S2（仅 Track B）
 #   --id ID   --limit N   --sample N（每 task/domain 前 N 条）
 #   --model M（被测 Ollama 模型）   --think on|off（DUT 思考开关，默认随模型）
 #   --judge-model M（DeepSeek judge）
 #   --concurrency N（默认 1：本地 GPU 串行，候选+判官耦合在 worker 内）
 #   --cache（生成与判分走缓存，快速迭代；默认不走缓存，度量新鲜质量）
+#   --hallu（额外跑原子声明级幻觉核查，多一次 judge 调用；默认关）
 #
 # 度量：每条记录 → 候选作答 → (Track B 确定性幻觉检查) → judge → 四维分。
 # 汇总：总体通过率 + 四维均分；Track B 额外出每专科表 + 幻觉率；Track A 出每 task 能力分。

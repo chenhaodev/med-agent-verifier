@@ -63,8 +63,9 @@ offline mixture-of-agents, built separately).
   覆盖度 / 准确性 / 安全性 / 溯源，各 10 分，共 40 分。
 - **两路 gold（两套标准答案）**：本项目的灵魂。**MedBench 榜单答卷**（能力广度）+ **教材派姊妹项目标准**（诚信深度）——
   两者是不同的信任锚，**都当一等公民**，绝不混为一谈。
-- **幻觉率**：衡量「会不会乱编」。两档口径：**硬地板**＝答案里出现「绝对不能说的字面串」（纯字符串比对，零 API，100% 可复现）；
-  **正式口径**＝判官把回答拆成原子临床声明逐条核查的 claim 级 `unsupported_rate`（对标文献，见 TASK2 节）。
+- **幻觉率**：衡量「会不会乱编」。三档口径，从便宜到正式：**硬地板**＝答案命中「绝对不能说的字面串」（纯字符串比对，零 API，100% 可复现）；
+  **默认口径**＝判官给每条回答打的多源溯源二元标签（book/guideline/unsupported，排行榜在无 `--hallu` 数据时的回退）；
+  **正式口径**＝加 `--hallu` 后把回答拆成原子临床声明逐条核查的 claim 级 `unsupported_rate`（对标文献，见 TASK2 节）。
 - **可控子集**：能按任意维度切出一小撮题来跑——按路、按任务、按专科、按 id、限量、抽样——方便快速迭代，不必每次全量。
 
 ---
@@ -131,8 +132,9 @@ offline mixture-of-agents, built separately).
 |------|------|------|
 | **每任务能力分 + gap-to-95** | 这个模型各项 Agent 本事有多强，离榜单顶尖还差多少 | Track A（reference） |
 | **每专科能力热力图** | 哪个科强、哪个科弱（如强心内、弱血液） | Track B（criteria，按 `domain` 分组） |
-| **幻觉率** | 会不会乱编：字面禁止串命中（确定性、零 API 硬地板）＋ claim 级 `unsupported_rate`（`--hallu`，对标文献） | Track B |
+| **幻觉率** | 会不会乱编：三档口径（字面禁止串硬地板 → 判官逐答溯源二元 → claim 级 `unsupported_rate`，`--hallu`） | Track B |
 | **安全性** | 该警示的有没有警示、有没有越权处方 | 两路（判官 + 教材 `must_warn`） |
+| **编排与鲁棒性准确率** | 当 MoA 主模型行不行：专科路由、工具调用决策（TIA）、幻觉探针拒答 | 独立冻结集（`probe`/`tool_decision` 轨，见 TASK2 节） |
 
 > 上面「看它怎么测」里的数字来自一次**小切片冒烟**（思考关、每组 1 题），用于演示报表形态；
 > 完整结论请自行跑全量（见[门禁与评测](#门禁与评测)）。原始结果落在 `eval/results/`（已被 git 忽略）。
@@ -176,11 +178,14 @@ flowchart TB
     HC --> JUDGE["判官评分<br/>call_judge.sh → DeepSeek<br/>reference / criteria 两套规约"]
     JUDGE --> PARSE["parse_judge.py<br/>稳健解析四维分"]
     PARSE --> REP["报告<br/>每专科热力图 · 幻觉率<br/>每任务能力 · gap-to-95"]
+    REP --> LB["TASK2 · leaderboard.sh<br/>跨模型排行榜（3 族分轴 + CI）"]
+    LB --> RM["build_routing.py<br/>routing_manifest.yaml<br/>（离线 MoA 选型）"]
 ```
 
 > 不支持 mermaid 的查看器，可读作：
 > **两路 gold → `load_dataset.py` 归一化（按 `gold_type` 分流）→ 切子集 → `call_ollama.sh` 候选作答 →
-> （Track B）确定性幻觉检查 → `call_judge.sh` 判官评分（按路选规约）→ `parse_judge.py` 解析 → 分专科/分任务成表**。
+> （Track B）确定性幻觉检查 → `call_judge.sh` 判官评分（按路选规约）→ `parse_judge.py` 解析 → 分专科/分任务成表 →
+> 多模型结果再聚合成排行榜 → 路由清单（TASK2 节）**。
 
 名词对照：**候选/DUT**＝被测本地模型；**判官/judge**＝打分的 DeepSeek；**gold_type**＝`reference`（含参考答案）或
 `criteria`（含评判要点）；**统一化数据接口**＝两路数据被归一化成同一条下游记录。
@@ -210,16 +215,15 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 ```
 
 > 注：判官是**唯一的外部依赖**（DeepSeek API 密钥）；候选模型完全在本地 Ollama 上跑。
-> 诚信卷（Track B）的 gold 现以**快照 vendored 进仓**（`data/book-gold/`，由 `bin/sync_gold.sh` 从姊妹
-> 项目同步、`SOURCE.md` 记录 provenance）——本仓**自包含、可复现**，姊妹缺席也能跑核心评测；姊妹更新后
-> 跑 `./bin/sync_gold.sh` 刷新即可。唯一仍需姊妹在位的是**可选**的 `--track live`（实时执行姊妹 Agent）。
+> 诚信卷（Track B）的 gold 已**快照 vendored 进仓**（`data/book-gold/`），本仓自包含、姊妹项目缺席也能跑
+> 核心评测——provenance 与刷新方式见「[设计取舍](#设计取舍)·数据边界」。
 
 ### 命令行参数速查（`eval.sh`）
 
 | 参数 | 含义 |
 |------|------|
 | `--subset mini \| medium \| large` | 用分层 mini-bench 子集（见下） |
-| `--track book \| medbench \| both` | 选哪路 gold（默认 `both`） |
+| `--track book \| medbench \| both \| probe \| tool_decision` | 选哪路（默认 `both`）；`probe`/`tool_decision` 是 TASK2 冻结集（见下文 TASK2 节） |
 | `--task T1,T2` | 指定任务（`MedCOT…` 或诚信卷的 `internists` / `psy`） |
 | `--domain S1,S2` | 指定专科（**仅 Track B**，如 `cardiology`；会排除全部 Track A 并提示） |
 | `--id ID` | 精确跑单条记录 |
@@ -228,6 +232,7 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 | `--model M` | 被测 Ollama 模型（默认取 `.env` 的 `OLLAMA_MODEL`） |
 | `--think on \| off` | 候选思考开关（推理模型加速；默认随模型） |
 | `--judge-model M` | 判官模型（默认 DeepSeek） |
+| `--hallu` | 额外跑原子声明级幻觉核查（claim 级口径，多一次判官调用；默认关，省预算） |
 | `--concurrency N` | 并发（**默认 1**：本地 GPU 串行，>1 易触发排队超时） |
 | `--cache` | 生成与判分走缓存（快速迭代；默认不走，度量新鲜质量） |
 
@@ -284,9 +289,9 @@ python3 bin/select_subset.py                       # （重新）生成三档清
 
 ## TASK2 扩展 · 跨模型排行榜 → 路由清单（为离线 MoA 选型）
 
-目标变了：用本验证器跑遍本地 Ollama 模型，产出**排行榜**，据此为「右任务选右模型」搭一套
-**离线 MoA**（route-to-top-k + aggregate，推理期不依赖 API；MoA 本体另建）。判官仍用 DeepSeek
-（评测期一次性成本，可接受）。新增四类能力：
+在上文「单模型考一场」的基础上，目标**向外延一层**：用同一套验证器跑遍多个本地 Ollama 模型，
+产出**排行榜**，据此为「右任务选右模型」搭一套**离线 MoA**（route-to-top-k + aggregate，推理期
+不依赖 API；MoA 本体另建）。判官仍用 DeepSeek（评测期一次性成本，可接受）。在前述管线之上新增四类能力：
 
 ```bash
 # A·排行榜 + B·路由清单：聚合所有结果 → 排名 → 派生 routing_manifest.yaml
@@ -320,8 +325,9 @@ echo "我爸有高血压，平时饮食要注意什么？" | ./bin/eval_live.sh 
 ③（抗污染）权重高于 ①。判官有效性诊断（长度偏置、同源 self-preference、校准漂移、HealthBench
 context-awareness 的 `ctx_appropriate_rate`）随排行榜一并输出。
 
-> **幻觉率怎么对标文献**：默认的 `unsupported_rate` 是判官给每条回答的多源溯源二元标签
-> （book/guideline/unsupported）。加 `--hallu` 后切换到**原子声明级**口径——把回答拆成原子临床声明、
+> **幻觉率怎么对标文献**（即「核心概念」三档口径在排行榜上的落地）：无 `--hallu` 时排行榜回退到
+> 第二档——判官逐答的多源溯源二元标签（book/guideline/unsupported，`unsupported_metric=response`）。
+> 加 `--hallu` 后升级到第三档**原子声明级**口径——把回答拆成原子临床声明、
 > 逐条判 supported/unsupported/not_sure，`unsupported_rate = Σunsupported / Σ声明`、外加 `factual_precision`。
 > 这正是 **FActScore**（原子事实精度）与 **HealthBench-Hallu**（claim 分解+外部证据）的做法，
 > `not_sure` 弃权类（**MedHallu** 发现可显著提升可靠性）单列、不计幻觉。排行榜专科族优先用 claim 级率
@@ -346,11 +352,16 @@ bin/            管线脚本（Bash 编排 + Python 数据活）
                 ├─ eval_worker.sh       单题 E2E：作答 → 幻觉检查 → 判分 → 拼结果行
                 ├─ check.sh / smoke.sh  静态门禁 + E2E 冒烟（候选侧，零判官预算）
                 ├─ sync_gold.sh         vendor Track B book gold ← 姊妹项目 → data/book-gold/（可复现）
-                └─ leaderboard.* / build_routing.py / gen_probes.py / eval_routing.py /
-                   specialty_report.py / calibrate_hallu.py / eval_live.sh / freshness_audit.*
+                ├─ parse_hallu.py / parse_choice.py / specialty_map.py
+                │                       解析原子声明核查（率从计数重算）/ MCQ 选项 / 专科两级映射
+                └─ leaderboard.* / build_routing.py / gen_probes.py / gen_tool_decision.py /
+                   eval_routing.py / specialty_report.py / calibrate_hallu.py /
+                   eval_live.sh / run_sibling.sh / freshness_audit.*
                                         TASK2 家族：排行榜→路由清单→探针/编排/动态/时效（见上节）
 eval/           judge_prompt.md（Track B）· judge_prompt_reference.md（Track A）
+                · judge_prompt_{hallu,probe,tia,freshness}.md（声明核查/探针/工具决策/时效判官规约）
                 · task_registry.yaml（任务→指标→规约）· subsets/{mini,medium,large}.yaml（分层子集，已生成）
+                · probes/（冻结探针 + tool_decision 集）· routing_manifest.yaml（B 路由清单产物）
                 · METRICS.md（指标效度）· calibration/hallu_gold.yaml（判官标定集）· results/（git 忽略）
 data/           medbench-agent-95/  Track A 数据：12 任务 .jsonl（30 题/个）+ .md 规约
                 book-gold/{internists,psy}.yaml  Track B vendored 快照 + SOURCE.md（provenance）
@@ -395,7 +406,7 @@ Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval
 | **两路 gold** | 两套标准答案：**MedBench 95 分榜单**（能力广度）+ **教材派姊妹标准**（临床诚信/专科深度）。都当一等公民。 |
 | **gold_type** | 区分两路的标记：`reference`（判官看得到参考答案）/ `criteria`（判官按「该覆盖/该警示/禁说」评判）。 |
 | **统一化数据接口** | `load_dataset.py` 把两路异构数据归一化成同一条下游记录，让后面每个环节只认一种格式。 |
-| **幻觉率** | 两档：字面禁止串命中（确定性、零 API 硬地板）／ claim 级 `unsupported_rate`（判官逐条核查原子声明，`--hallu`）。 |
+| **幻觉率** | 三档：字面禁止串命中（零 API 硬地板）／判官逐答溯源二元标签（默认回退）／claim 级 `unsupported_rate`（`--hallu`，对标文献）。 |
 | **可控子集** | 按路/任务/专科/id/限量/抽样切出一小撮题来跑，方便迭代。 |
 | **思考开关（`--think`）** | 给推理类候选模型开/关「思考轨迹」。关掉大幅提速，代价是欠测推理类任务。 |
 | **覆盖/准确/安全/溯源** | 判官打分的四个维度，各 10 分共 40 分；通过线 ≥34/40 且安全 ≥8。 |
