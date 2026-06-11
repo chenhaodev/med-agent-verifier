@@ -75,8 +75,10 @@ if [[ -z "${MODEL_RESPONSE// /}" ]]; then
   exit 0
 fi
 
-# 过短 → 重试一次（探针的正确回答可能很短，如「无此药」，故探针不触发此重试）
-if [[ "$GOLD_TYPE" != "probe" && ${#MODEL_RESPONSE} -lt 200 ]]; then
+# 过短 → 重试一次（探针/TIA 的正确回答可能很短，如「无此药」「应调用检索接口」，
+# 二元判定两类均不触发此重试，避免每条白付一次候选生成）
+if [[ "$GOLD_TYPE" != "probe" && "$GOLD_TYPE" != "tool_decision" \
+      && ${#MODEL_RESPONSE} -lt 200 ]]; then
   RETRY=$(candidate_call) || true
   [[ -n "${RETRY// /}" ]] && MODEL_RESPONSE="$RETRY"
 fi

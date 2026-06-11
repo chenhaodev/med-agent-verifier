@@ -34,7 +34,7 @@ PYEOF
 A=$(python3 "$SCRIPT_DIR/load_dataset.py" --track medbench --count 2>/dev/null || echo 0)
 B=$(python3 "$SCRIPT_DIR/load_dataset.py" --track book --count 2>/dev/null || echo 0)
 [[ "$A" -gt 0 ]] && pass "Track A 加载 $A 条" || fail "Track A 加载为 0"
-[[ "$B" -gt 0 ]] && pass "Track B 加载 $B 条（兄弟 gold live）" || fail "Track B 加载为 0（兄弟项目路径？）"
+[[ "$B" -gt 0 ]] && pass "Track B 加载 $B 条（vendored 快照）" || fail "Track B 加载为 0（data/book-gold/ 快照缺失？跑 ./bin/sync_gold.sh）"
 
 # 3) judge 资产存在（含 TASK2 新增的 probe/TIA/freshness rubric）
 for f in eval/judge_prompt.md eval/judge_prompt_reference.md eval/judge_prompt_probe.md \
