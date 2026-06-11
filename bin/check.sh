@@ -58,7 +58,8 @@ for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing par
     && pass "bin/$s.py 语法 ok" || fail "bin/$s.py 语法错误"
 done
 for s in leaderboard run_sibling eval_live freshness_audit sync_gold \
-         eval eval_worker call_judge call_ollama run_candidate smoke; do
+         eval eval_worker call_judge call_ollama call_openai_compat call_candidate \
+         run_candidate smoke; do
   bash -n "$ROOT_DIR/bin/$s.sh" 2>/dev/null && pass "bin/$s.sh 语法 ok" || fail "bin/$s.sh 语法错误"
 done
 # leaderboard 须能在零/部分数据下解析不崩
