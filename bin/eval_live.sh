@@ -7,6 +7,7 @@
 #   ./bin/eval_live.sh --agent psy --mode patient --model qwen3.5 "我最近总是失眠怎么办？"
 #
 # 选项：--agent internists|psy  --mode patient|doctor  --model M  --think on|off  --no-cache
+#       --backend ollama|openai|siliconflow|litellm（候选后端，默认 ollama）
 #       --file F（每行一问）；或把单个问题作为位置参数 / stdin。
 #
 # 流程（每题）：run_sibling 取现答(reference) → 组 gold_type=reference 记录(track=live)
@@ -19,6 +20,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 AGENT="internists"; MODE="patient"
+CANDIDATE_BACKEND="${CANDIDATE_BACKEND:-ollama}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5:1.5b}"
 OLLAMA_THINK="${OLLAMA_THINK:-}"
 JUDGE_MODEL="${JUDGE_MODEL:-${DEEPSEEK_MODEL:-deepseek-v4-flash}}"
@@ -30,6 +32,7 @@ while [[ $# -gt 0 ]]; do
     --agent)    AGENT="$2";        shift 2 ;;
     --mode)     MODE="$2";         shift 2 ;;
     --model)    OLLAMA_MODEL="$2"; shift 2 ;;
+    --backend)  CANDIDATE_BACKEND="$2"; shift 2 ;;
     --think)    OLLAMA_THINK="$2"; shift 2 ;;
     --judge-model) JUDGE_MODEL="$2"; shift 2 ;;
     --file)     FILE="$2";         shift 2 ;;
@@ -63,12 +66,12 @@ RESULT_FILE="$RESULTS_DIR/${TIMESTAMP}_live_${AGENT}.json"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo " med-agent-verifier 动态评测（live）— $(date '+%H:%M:%S')"
-echo " agent=${AGENT} mode=${MODE}  model=${OLLAMA_MODEL}  judge=${JUDGE_MODEL}  题数=${#QUESTIONS[@]}"
+echo " agent=${AGENT} mode=${MODE}  backend=${CANDIDATE_BACKEND}  model=${OLLAMA_MODEL}  judge=${JUDGE_MODEL}  题数=${#QUESTIONS[@]}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 WORKDIR=$(mktemp -d); trap 'rm -rf "$WORKDIR"' EXIT
 JUDGE_SYSTEM_REFERENCE=$(cat "$ROOT_DIR/eval/judge_prompt_reference.md")
-export ROOT_DIR OLLAMA_MODEL OLLAMA_THINK JUDGE_MODEL EVAL_NO_CACHE JUDGE_SYSTEM_REFERENCE
+export ROOT_DIR CANDIDATE_BACKEND OLLAMA_MODEL OLLAMA_THINK JUDGE_MODEL EVAL_NO_CACHE JUDGE_SYSTEM_REFERENCE
 export OLLAMA_HOST DEEPSEEK_API_KEY DEEPSEEK_MODEL DEEPSEEK_TIMEOUT DEEPSEEK_MAX_RETRIES 2>/dev/null || true
 NC_ARGS=(); [[ "$EVAL_NO_CACHE" == "1" ]] && NC_ARGS=(--no-cache)
 
@@ -97,7 +100,7 @@ done
 
 # 3) 聚合
 python3 - "$WORKDIR" "$RESULT_FILE" "$TIMESTAMP" "$OLLAMA_MODEL" "$JUDGE_MODEL" "$AGENT" <<'PYEOF'
-import json, glob, sys
+import json, glob, os, sys
 workdir, result_file, ts, model, judge_model, agent = sys.argv[1:7]
 rows = []
 for path in sorted(glob.glob(f"{workdir}/r_*.json")):
@@ -108,6 +111,7 @@ n = len(scored)
 avg = (lambda k: round(sum(r["scores"][k] for r in scored) / n, 1) if n else 0)
 summary = {
     "timestamp": ts, "track": "live", "subset": None, "agent": agent,
+    "backend": os.environ.get("CANDIDATE_BACKEND", "ollama"),
     "model": model, "judge_model": judge_model,
     "total": len(rows), "evaluated": n, "errors": sum(1 for r in rows if "error" in r),
     "avg_scores": {k: avg(k) for k in ("coverage", "accuracy", "safety", "grounding", "total")},

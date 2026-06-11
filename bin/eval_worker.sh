@@ -6,6 +6,7 @@
 #   ROOT_DIR             仓库根目录
 #   RECORD_OBJ           单条归一化记录 JSON（load_dataset.py 的一行）
 #   OLLAMA_MODEL         被测候选模型名
+#   CANDIDATE_BACKEND    候选后端 ollama|openai|siliconflow|litellm（默认 ollama）
 #   JUDGE_SYSTEM_CRITERIA  Track B judge system prompt 全文
 #   JUDGE_SYSTEM_REFERENCE Track A judge system prompt 全文
 #   JUDGE_MODEL          judge 模型名（DeepSeek）
@@ -29,14 +30,16 @@ OUT_FILE="${1:?用法：eval_worker.sh <输出文件路径>}"
 : "${JUDGE_MODEL:?缺少 JUDGE_MODEL}"
 EVAL_NO_CACHE="${EVAL_NO_CACHE:-1}"
 OLLAMA_THINK="${OLLAMA_THINK:-}"   # 由 eval.sh 导出；空=模型默认
+CANDIDATE_BACKEND="${CANDIDATE_BACKEND:-ollama}"
 
 CACHE_ARGS=()
 [[ "$EVAL_NO_CACHE" == "1" ]] && CACHE_ARGS=(--no-cache)
 
-# 把 --think 作为显式参数转发给候选（而非仅靠 env：call_ollama 会 source .env，
-# 可能覆盖继承来的 OLLAMA_THINK；显式 flag 在 source 之后解析，必胜）。
+# 把 --think/--backend 作为显式参数转发给候选（而非仅靠 env：下游会 source .env，
+# 可能覆盖继承来的环境变量；显式 flag 在 source 之后解析，必胜）。
 THINK_ARGS=()
 [[ -n "$OLLAMA_THINK" ]] && THINK_ARGS=(--think "$OLLAMA_THINK")
+BACKEND_ARGS=(--backend "$CANDIDATE_BACKEND")
 
 # judge 调用（四维流程与探针分支共用）：payload 经 $JUDGE_PAYLOAD/stdin，缓存参数透传
 judge_call() { printf '%s' "$JUDGE_PAYLOAD" | "$SCRIPT_DIR/call_judge.sh" "$@" 2>/dev/null; }
@@ -58,15 +61,16 @@ PYEOF
 )
 IFS=$'\t' read -r TRACK TASK QID GOLD_TYPE QTEXT <<< "$_LINE"
 
-# ─── 2) 候选作答（Ollama，raw question only）─────────────────────
+# ─── 2) 候选作答（经 call_candidate 后端调度，raw question only）──
 candidate_call() {
   printf '%s' "$QTEXT" | "$SCRIPT_DIR/run_candidate.sh" --model "$OLLAMA_MODEL" \
+    "${BACKEND_ARGS[@]}" \
     ${THINK_ARGS[@]+"${THINK_ARGS[@]}"} ${CACHE_ARGS[@]+"${CACHE_ARGS[@]}"} 2>/dev/null
 }
 
 MODEL_RESPONSE=$(candidate_call) || {
-  printf '[%s/%s] [OLLAMA ERROR]\n' "$TASK" "$QID"
-  printf '{"track":"%s","task":"%s","id":"%s","error":"ollama_error"}\n' "$TRACK" "$TASK" "$QID" > "$OUT_FILE"
+  printf '[%s/%s] [CANDIDATE ERROR]\n' "$TASK" "$QID"
+  printf '{"track":"%s","task":"%s","id":"%s","error":"candidate_error"}\n' "$TRACK" "$TASK" "$QID" > "$OUT_FILE"
   exit 0
 }
 if [[ -z "${MODEL_RESPONSE// /}" ]]; then

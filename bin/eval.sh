@@ -10,7 +10,8 @@
 #   --subset mini|medium|large   命名分层子集（eval/subsets/*.yaml，由 select_subset.py 生成）
 #   --track book|medbench|both|probe|tool_decision   --task T1,T2   --domain S1,S2（仅 Track B）
 #   --id ID   --limit N   --sample N（每 task/domain 前 N 条）
-#   --model M（被测 Ollama 模型）   --think on|off（DUT 思考开关，默认随模型）
+#   --model M（被测候选模型）   --think on|off（DUT 思考开关，默认随模型）
+#   --backend ollama|openai|siliconflow|litellm（候选后端，默认 ollama；见 call_candidate.sh）
 #   --judge-model M（DeepSeek judge）
 #   --concurrency N（默认 1：本地 GPU 串行，候选+判官耦合在 worker 内）
 #   --cache（生成与判分走缓存，快速迭代；默认不走缓存，度量新鲜质量）
@@ -31,6 +32,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 TRACK="both"
 TASK=""; DOMAIN=""; FILTER_ID=""; LIMIT=""; SAMPLE=""; SUBSET=""
+CANDIDATE_BACKEND="${CANDIDATE_BACKEND:-ollama}"   # 候选后端：ollama|openai|siliconflow|litellm
 OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5:1.5b}"
 OLLAMA_THINK="${OLLAMA_THINK:-}"   # DUT 思考开关：on|off；空=模型默认
 JUDGE_MODEL="${JUDGE_MODEL:-${DEEPSEEK_MODEL:-deepseek-v4-flash}}"
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --limit)       LIMIT="$2";            shift 2 ;;
     --sample)      SAMPLE="$2";           shift 2 ;;
     --model)       OLLAMA_MODEL="$2";     shift 2 ;;
+    --backend)     CANDIDATE_BACKEND="$2"; shift 2 ;;
     --think)       OLLAMA_THINK="$2";     shift 2 ;;
     --judge-model) JUDGE_MODEL="$2";      shift 2 ;;
     --concurrency) EVAL_CONCURRENCY="$2"; shift 2 ;;
@@ -75,7 +78,7 @@ SUMMARY_FILE="$RESULTS_DIR/${TIMESTAMP}_${LABEL}_summary.txt"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo " med-agent-verifier Eval — $(date '+%Y-%m-%d %H:%M:%S')"
-echo " track=${TRACK}${SUBSET:+  subset=${SUBSET}}  model=${OLLAMA_MODEL}  think=${OLLAMA_THINK:-default}  judge=${JUDGE_MODEL}${EVAL_HALLU:+  hallu=$([[ "$EVAL_HALLU" == "1" ]] && echo on || echo off)}"
+echo " track=${TRACK}${SUBSET:+  subset=${SUBSET}}  backend=${CANDIDATE_BACKEND}  model=${OLLAMA_MODEL}  think=${OLLAMA_THINK:-default}  judge=${JUDGE_MODEL}${EVAL_HALLU:+  hallu=$([[ "$EVAL_HALLU" == "1" ]] && echo on || echo off)}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 WORKDIR=$(mktemp -d)
@@ -125,7 +128,7 @@ JUDGE_SYSTEM_PROBE=$(cat "$ROOT_DIR/eval/judge_prompt_probe.md")
 JUDGE_SYSTEM_TIA=$(cat "$ROOT_DIR/eval/judge_prompt_tia.md")
 JUDGE_SYSTEM_HALLU=$(cat "$ROOT_DIR/eval/judge_prompt_hallu.md")
 
-export ROOT_DIR SCRIPT_DIR WORKDIR OLLAMA_MODEL OLLAMA_THINK JUDGE_MODEL EVAL_NO_CACHE EVAL_HALLU
+export ROOT_DIR SCRIPT_DIR WORKDIR CANDIDATE_BACKEND OLLAMA_MODEL OLLAMA_THINK JUDGE_MODEL EVAL_NO_CACHE EVAL_HALLU
 export JUDGE_SYSTEM_CRITERIA JUDGE_SYSTEM_REFERENCE JUDGE_SYSTEM_PROBE JUDGE_SYSTEM_TIA JUDGE_SYSTEM_HALLU
 export OLLAMA_HOST DEEPSEEK_API_KEY DEEPSEEK_MODEL DEEPSEEK_TIMEOUT DEEPSEEK_MAX_RETRIES 2>/dev/null || true
 
@@ -142,12 +145,13 @@ seq 0 $((TOTAL - 1)) | xargs -P "$EVAL_CONCURRENCY" -n1 "$DISPATCHER"
 
 # ─── 聚合 → results + summary ─────────────────────────────────────
 {
-python3 - "$WORKDIR" "$RESULT_FILE" "$TIMESTAMP" "$TRACK" "$OLLAMA_MODEL" "$JUDGE_MODEL" "$TOTAL" "$SUBSET" <<'PYEOF'
+python3 - "$WORKDIR" "$RESULT_FILE" "$TIMESTAMP" "$TRACK" "$OLLAMA_MODEL" "$JUDGE_MODEL" "$TOTAL" "$SUBSET" "$CANDIDATE_BACKEND" <<'PYEOF'
 import json, glob, sys, os
 from collections import defaultdict
 
 workdir, result_file, ts, track, model, judge_model, total = sys.argv[1:8]
 subset = sys.argv[8] if len(sys.argv) > 8 else ""
+backend = sys.argv[9] if len(sys.argv) > 9 else "ollama"
 total = int(total)
 
 rows = []
@@ -257,7 +261,8 @@ if probe_rows:
     }
 
 summary = {
-    "timestamp": ts, "track": track, "subset": subset or None, "model": model, "judge_model": judge_model,
+    "timestamp": ts, "track": track, "subset": subset or None,
+    "backend": backend, "model": model, "judge_model": judge_model,
     "total": total, "evaluated": evaluated, "errors": errors,
     "passed": passed, "pass_rate_pct": pass_rate,
     "hallucinated": halluc, "hallucination_rate_pct": halluc_rate,

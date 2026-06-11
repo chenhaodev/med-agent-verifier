@@ -4,8 +4,9 @@
 MoA 主模型的核心技能之一是「选择科室」。本评测复用 book gold 的 expected_domain 作为**真值**：
 让候选模型对每个问题只输出一个专科，与真值精确匹配 → Accuracy。无判官、无 API 成本。
 
-候选调用仍走官方 Ollama REST：subprocess 到 bin/call_ollama.sh（bash/curl /api/generate），
-Python 只做选题/解析/计分（与仓库「bash 编排 LLM、Python 管数据」一致）。
+候选调用经统一后端调度：subprocess 到 bin/call_candidate.sh（--backend ollama|openai|
+siliconflow|litellm，默认 ollama 即官方 REST /api/generate），Python 只做选题/解析/计分
+（与仓库「bash 编排 LLM、Python 管数据」一致）。
 
 结果写 eval/results/{ts}_routing.json（summary+results，track=routing），供 leaderboard.py
 归入 orchestration 族、build_routing.py 计入 orchestrator 主模型排名。
@@ -39,9 +40,10 @@ PROMPT_TMPL = (
 )
 
 
-def call_ollama(prompt, model, think, no_cache):
-    """subprocess 到 call_ollama.sh（官方 REST）。返回回复文本；失败抛 CalledProcessError。"""
-    args = [os.path.join(SCRIPT_DIR, "call_ollama.sh"), "--model", model]
+def call_candidate(prompt, model, backend, think, no_cache):
+    """subprocess 到 call_candidate.sh（后端调度）。返回回复文本；失败抛 CalledProcessError。"""
+    args = [os.path.join(SCRIPT_DIR, "call_candidate.sh"),
+            "--backend", backend, "--model", model]
     if think:
         args += ["--think", think]
     if no_cache:
@@ -55,6 +57,8 @@ def call_ollama(prompt, model, think, no_cache):
 def main():
     ap = argparse.ArgumentParser(description="F1 专科路由准确率（judge-free）")
     ap.add_argument("--model", default=os.environ.get("OLLAMA_MODEL", "qwen2.5:1.5b"))
+    ap.add_argument("--backend", default=os.environ.get("CANDIDATE_BACKEND", "ollama"),
+                    help="候选后端：ollama|openai|siliconflow|litellm（默认 ollama）")
     ap.add_argument("--think", default="", help="on|off；空=模型默认")
     ap.add_argument("--limit", type=int, help="只评前 N 条")
     ap.add_argument("--domain", help="只评某专科（逗号分隔）")
@@ -79,12 +83,12 @@ def main():
     for r in records:
         prompt = PROMPT_TMPL.format(specialties=spec_str, question=r.get("question", ""))
         try:
-            resp = call_ollama(prompt, args.model, args.think, no_cache)
+            resp = call_candidate(prompt, args.model, args.backend, args.think, no_cache)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             errors += 1
             rows.append({"track": "routing", "task": "specialty_routing",
-                         "id": r.get("id"), "error": "ollama_error"})
-            print(f"[routing/{r.get('id')}] [OLLAMA ERROR]")
+                         "id": r.get("id"), "error": "candidate_error"})
+            print(f"[routing/{r.get('id')}] [CANDIDATE ERROR]")
             continue
         predicted = match_choice(resp, specialties)
         correct = predicted == r.get("domain")
@@ -112,7 +116,7 @@ def main():
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     summary = {
         "timestamp": ts, "track": "routing", "subset": None,
-        "model": args.model, "judge_model": None,
+        "backend": args.backend, "model": args.model, "judge_model": None,
         "total": len(records), "evaluated": n, "errors": errors,
         "accuracy": accuracy, "by_domain": by_domain,
     }
