@@ -1,5 +1,6 @@
 # Makefile — med-agent-verifier 任务入口（把分散在 CLAUDE.md/README 的命令收敛成可发现的 target）。
-# 约定：bash 编排 + Python 处理数据；判官=DeepSeek，候选=本地 Ollama。详见 README.md / eval/METRICS.md。
+# 约定：bash 编排 + Python 处理数据；判官=DeepSeek，候选=本地 Ollama（默认）或 OpenAI-compatible 端点
+#（--backend openai|siliconflow|litellm，经 bin/call_candidate.sh 调度）。详见 README.md / eval/METRICS.md。
 
 # 可覆盖变量：make eval MODEL=qwen3.5 TRACK=book SUBSET=mini HALLU=1 THINK=off
 MODEL  ?= qwen3.5

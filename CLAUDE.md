@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A **medical-capability verifier / evaluation harness** for **local Ollama models** (Chinese-language
-medical tasks). The goal (original briefs ingested below, § Original task briefs) is to measure how well
-local models do on medicine, scored against
+A **medical-capability verifier / evaluation harness** for **local Ollama models** — and, since
+2026-06-11, any **OpenAI-compatible endpoint** (OpenAI API, siliconflow.cn, a local LiteLLM proxy) via
+`--backend` — on Chinese-language medical tasks. The goal (original briefs ingested below, § Original
+task briefs) is to measure how well local models do on medicine, scored against
 two **trusted gold sources**:
 
 1. **Book-distilled "serious" agents** (Track B, `gold_type=criteria`) — the sibling projects
@@ -41,11 +42,12 @@ make help                                 # discoverable entry point: sync/check
 pip install -r requirements.txt          # only pyyaml  (= make install)
 cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
 ./bin/sync_gold.sh                        # vendor Track B book gold → data/book-gold/ (= make sync; paths via MED_AGENT_* env)
-python3 -m unittest discover -s tests     # 22-test stdlib suite (= make test; also run inside check.sh)
+python3 -m unittest discover -s tests     # 33-test stdlib suite (= make test; also run inside check.sh)
 ruff check bin/*.py tests/                # lint: line-length 99, select E/F/I (= make lint)
 ./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
 ./bin/eval.sh --track both --sample 3 --model qwen3.5                  # run: candidate (Ollama) → halluc check → judge (DeepSeek) → 0–40
+./bin/eval.sh --track book --sample 3 --backend siliconflow --model Qwen/Qwen2.5-7B-Instruct  # candidate on an OpenAI-compatible endpoint (--backend ollama|openai|siliconflow|litellm; dispatcher bin/call_candidate.sh)
 ./bin/eval.sh --track book --hallu --sample 3 --model qwen3.5          # + FActScore/HealthBench-Hallu atomic-claim hallucination (claim-level unsupported_rate + factual_precision)
 ./bin/eval.sh --subset mini --model qwen3.5                            # 30-question tiered mini-bench (hardest + most orthogonal)
 python3 bin/select_subset.py                                          # (re)generate eval/subsets/{mini,medium,large}.yaml
@@ -191,8 +193,22 @@ A verifier must therefore support a judge model, not just exact match.
 
 `ollama` is installed locally and hosts the candidate models (e.g. `glm-4.7-flash`, `qwen3.5`, `gpt-oss:20b`,
 `qwen2.5:1.5b`, and medical fine-tunes like `Baichuan-M2-32B`, `SafeMed-R1`). Run `ollama list` to see
-what's available. The candidate-under-test is a local Ollama model; the judge may be a stronger model
-(local or the DeepSeek API used by the sibling projects).
+what's available. The candidate-under-test defaults to a local Ollama model; the judge may be a stronger
+model (local or the DeepSeek API used by the sibling projects).
+
+**Candidate backends (multi-middleware).** All candidate calls go through the dispatcher
+`bin/call_candidate.sh` (`--backend` flag or `CANDIDATE_BACKEND` in `.env`; default `ollama` = exact
+legacy behavior). Two protocol implementations, both bash+curl with temperature=0 and sha256 response
+caches: `call_ollama.sh` (official REST `/api/generate`, `--think` → native `think` field) and
+`call_openai_compat.sh` (`/v1/chat/completions`; cache key includes base_url; `--think` →
+`enable_thinking`, injected only when explicit; API key passed by env-var *name* via `--api-key-env` so
+it never enters cache keys/logs). `openai`/`siliconflow`/`litellm` are presets differing only in
+base_url + key env (`OPENAI_*`/`SILICONFLOW_*`/`LITELLM_*`, see `.env.example`); presets are passed as
+explicit flags because downstream scripts re-source `.env` (flags parse after, so they win). Adding a
+backend = one new `call_*.sh` + one `case` line in the dispatcher. `--backend` threads through
+`eval.sh`/`eval_live.sh`/`eval_routing.py` and is recorded as a `backend` field in result summary JSON
+(same model name on different endpoints stays distinguishable). Tests: `tests/test_call_candidate.py`
+(mock chat/completions server, 11 cases).
 
 ## Sibling-project conventions (the pattern to reuse)
 

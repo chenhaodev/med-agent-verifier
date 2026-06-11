@@ -1,16 +1,18 @@
 # 本地医学模型能力验证器 · med-agent-verifier
 
-> 给**本地 Ollama 模型**做一场中文医学考试，并由更强的模型当「考官」逐题打分。
+> 给**本地 Ollama 模型**（或任意 OpenAI-compatible 端点上的模型）做一场中文医学考试，
+> 并由更强的模型当「考官」逐题打分。
 > 关键在于：用**两套互补的权威标准答案**同时衡量——既看「会不会」，也看「会不会乱编」。
 
-`2 路 gold（信任锚）` · `12 项 Agent 能力 + 37 个专科` · `候选 = 本地 Ollama` · `判官 = DeepSeek` · `Python + Bash`
+`2 路 gold（信任锚）` · `12 项 Agent 能力 + 37 个专科` · `候选 = Ollama｜OpenAI-API｜siliconflow.cn｜LiteLLM` · `判官 = DeepSeek` · `Python + Bash`
 
 ---
 
 <details>
 <summary><b>English TL;DR</b>（for non-Chinese readers & LLM agents — data and docs are Chinese by design）</summary>
 
-**What**: an evaluation harness that scores **local Ollama models** on Chinese medical tasks, judged by a
+**What**: an evaluation harness that scores **local Ollama models** (or any OpenAI-compatible
+endpoint — siliconflow.cn, a LiteLLM proxy — via `--backend`) on Chinese medical tasks, judged by a
 stronger model (DeepSeek) against **two independent gold standards** — (A) a 95-point MedBench Agent
 leaderboard run (12 capabilities × 30 questions, `gold_type=reference`) and (B) two textbook-distilled
 sibling agents with page-traceable criteria (235 questions / 37 specialties, `gold_type=criteria`,
@@ -57,7 +59,9 @@ offline mixture-of-agents, built separately).
 
 后面反复用到，先用大白话讲清楚（更全的解释见文末[名词速查](#附录名词速查)）：
 
-- **候选 / 被测模型（DUT）**：要被考的那个**本地 Ollama 模型**（如 `qwen3.5`、`glm-4.7-flash`、医学微调款 `Baichuan-M2-32B`）。
+- **候选 / 被测模型（DUT）**：要被考的那个模型——默认**本地 Ollama**（如 `qwen3.5`、`glm-4.7-flash`、
+  医学微调款 `Baichuan-M2-32B`），也可经 `--backend` 切到任意 **OpenAI-compatible 端点**
+  （OpenAI 官方 / siliconflow.cn / 本地 LiteLLM 代理）。
   它只收到**原始问题**作答，不给任何提示脚手架——考的是「裸能力」。
 - **判官（LLM-judge）**：负责打分的更强模型（本项目用 **DeepSeek API**）。按统一细则给每个答案打**四维分**：
   覆盖度 / 准确性 / 安全性 / 溯源，各 10 分，共 40 分。
@@ -152,9 +156,11 @@ offline mixture-of-agents, built separately).
   不依赖判官的主观判断，**这一项不花一分钱、且 100% 可复现**。
 - **候选只收原始问题（裸考）**：不注入患者/医生模式框架、不给小节模板，测的是模型**无脚手架**的真实医学能力；
   代价是评分时**丢掉与模式相关的结构性要求**以求公平，只评与模式无关的临床内容。
-- **候选走官方 Ollama REST API（bash + curl）**：`POST /api/generate`，`temperature=0`、`stream=false`，
-  不用任何 Python 客户端或封装——轻依赖、可复现。还带 `--think on|off` 开关，给推理模型加速（实测把 `qwen3.5`
-  从 ~147s/题 提到 ~46s/题，代价是欠测推理类任务）。
+- **候选经统一后端调度（bash + curl，不用任何 Python 客户端或封装）**：`call_candidate.sh` 按
+  `--backend` 分发——默认 `ollama` 走官方 REST `POST /api/generate`；`openai|siliconflow|litellm`
+  走 OpenAI-compatible `/v1/chat/completions`（仅 base_url 与 key 来源不同）。两类协议同一契约：
+  `temperature=0`、`stream=false`、sha256 响应缓存——轻依赖、可复现。还带 `--think on|off` 开关，
+  给推理模型加速（实测把 `qwen3.5` 从 ~147s/题 提到 ~46s/题，代价是欠测推理类任务）。
 - **门禁先于花钱**：`check.sh` 把「注册表覆盖、两路 gold 能加载、E2E 冒烟」跑通（不碰判官 API），
   全绿才让 `eval.sh` 去消耗 DeepSeek 预算。
 
@@ -173,7 +179,7 @@ flowchart TB
     A -->|gold_type=reference| L["load_dataset.py<br/>统一化数据接口"]
     B -->|gold_type=criteria| L
     L --> SEL["可控子集<br/>--track / --task / --domain<br/>--id / --limit / --sample"]
-    SEL --> RUN["候选作答<br/>call_ollama.sh → 本地 Ollama<br/>raw question · --think on|off · temp 0"]
+    SEL --> RUN["候选作答<br/>call_candidate.sh 后端调度<br/>ollama｜openai｜siliconflow｜litellm<br/>raw question · --think on|off · temp 0"]
     RUN --> HC{"确定性幻觉检查<br/>Track B · 字面串命中 · 零 API"}
     HC --> JUDGE["判官评分<br/>call_judge.sh → DeepSeek<br/>reference / criteria 两套规约"]
     JUDGE --> PARSE["parse_judge.py<br/>稳健解析四维分"]
@@ -183,7 +189,7 @@ flowchart TB
 ```
 
 > 不支持 mermaid 的查看器，可读作：
-> **两路 gold → `load_dataset.py` 归一化（按 `gold_type` 分流）→ 切子集 → `call_ollama.sh` 候选作答 →
+> **两路 gold → `load_dataset.py` 归一化（按 `gold_type` 分流）→ 切子集 → `call_candidate.sh` 候选作答（后端调度）→
 > （Track B）确定性幻觉检查 → `call_judge.sh` 判官评分（按路选规约）→ `parse_judge.py` 解析 → 分专科/分任务成表 →
 > 多模型结果再聚合成排行榜 → 路由清单（TASK2 节）**。
 
@@ -229,7 +235,8 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 | `--id ID` | 精确跑单条记录 |
 | `--limit N` | 过滤后取前 N 条 |
 | `--sample N` | 每个任务/专科前 N 条（确定性分层抽样） |
-| `--model M` | 被测 Ollama 模型（默认取 `.env` 的 `OLLAMA_MODEL`） |
+| `--model M` | 被测候选模型（默认取 `.env` 的 `OLLAMA_MODEL`） |
+| `--backend B` | 候选后端：`ollama`（默认，官方 REST）\| `openai` \| `siliconflow` \| `litellm`（OpenAI-compatible；各自 base_url/key 配置见 `.env.example`） |
 | `--think on \| off` | 候选思考开关（推理模型加速；默认随模型） |
 | `--judge-model M` | 判官模型（默认 DeepSeek） |
 | `--hallu` | 额外跑原子声明级幻觉核查（claim 级口径，多一次判官调用；默认关，省预算） |
@@ -343,7 +350,9 @@ context-awareness 的 `ctx_appropriate_rate`）随排行榜一并输出。
 ```text
 bin/            管线脚本（Bash 编排 + Python 数据活）
                 ├─ load_dataset.py      两路 gold → 统一化记录（gold_type 分流）+ 可控子集过滤
-                ├─ call_ollama.sh       候选：官方 Ollama REST（curl POST /api/generate）+ --think + sha256 缓存
+                ├─ call_candidate.sh    候选后端调度器（--backend ollama|openai|siliconflow|litellm，解耦点）
+                ├─ call_ollama.sh       候选后端 ollama：官方 REST（curl POST /api/generate）+ --think + sha256 缓存
+                ├─ call_openai_compat.sh 候选后端 openai 系：/v1/chat/completions（curl）+ sha256 缓存（键含 base_url）
                 ├─ select_subset.py     生成分层 mini-bench（难度启发式 + 分桶轮询，纯确定性）→ eval/subsets/*.yaml
                 ├─ run_candidate.sh     候选薄封装（raw question only）
                 ├─ call_judge.sh        判官：DeepSeek API + 指数退避重试 + sha256 缓存
@@ -365,9 +374,9 @@ eval/           judge_prompt.md（Track B）· judge_prompt_reference.md（Track
                 · METRICS.md（指标效度）· calibration/hallu_gold.yaml（判官标定集）· results/（git 忽略）
 data/           medbench-agent-95/  Track A 数据：12 任务 .jsonl（30 题/个）+ .md 规约
                 book-gold/{internists,psy}.yaml  Track B vendored 快照 + SOURCE.md（provenance）
-tests/          stdlib unittest 套件（22 用例：解析器/指标/loader），`make test` 或随 check.sh 跑
+tests/          stdlib unittest 套件（33 用例：解析器/指标/loader/候选后端调度），`make test` 或随 check.sh 跑
 Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval/leaderboard/calibrate/…）
-.env.example    判官密钥（DEEPSEEK_*）+ 候选配置（OLLAMA_HOST/MODEL/TIMEOUT/THINK）
+.env.example    判官密钥（DEEPSEEK_*）+ 候选配置（CANDIDATE_BACKEND + OLLAMA_*/OPENAI_*/SILICONFLOW_*/LITELLM_*）
 ```
 
 **两路 gold 的规模**：Track A = 12 任务 × 30 题 = **360 条**；Track B = 内科 183 + 精神科 52 = **235 题 / 37 专科**。
@@ -401,7 +410,7 @@ Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval
 
 | 名词 | 一句话解释 |
 |------|------------|
-| **候选 / 被测模型 / DUT** | 要被考的那个**本地 Ollama 模型**。只收原始问题作答，考「裸能力」。 |
+| **候选 / 被测模型 / DUT** | 要被考的那个模型（默认本地 Ollama；`--backend` 可切 OpenAI-compatible 端点）。只收原始问题作答，考「裸能力」。 |
 | **判官 / LLM-judge** | 用一个更强的模型（本项目 DeepSeek）按评分细则给答案打四维分，实现自动化评测。 |
 | **两路 gold** | 两套标准答案：**MedBench 95 分榜单**（能力广度）+ **教材派姊妹标准**（临床诚信/专科深度）。都当一等公民。 |
 | **gold_type** | 区分两路的标记：`reference`（判官看得到参考答案）/ `criteria`（判官按「该覆盖/该警示/禁说」评判）。 |
@@ -411,7 +420,8 @@ Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval
 | **思考开关（`--think`）** | 给推理类候选模型开/关「思考轨迹」。关掉大幅提速，代价是欠测推理类任务。 |
 | **覆盖/准确/安全/溯源** | 判官打分的四个维度，各 10 分共 40 分；通过线 ≥34/40 且安全 ≥8。 |
 | **MedBench** | 一个中文医学 Agent 评测榜单；本项目用其「95 分顶尖提交」的答卷做 Track A 参考。 |
-| **Ollama** | 在本机跑大模型的运行时；候选模型都托管在它上面，经官方 REST API（curl）调用。 |
+| **Ollama** | 在本机跑大模型的运行时；**默认候选后端**，经官方 REST API（curl）调用。 |
+| **候选后端（`--backend`）** | 候选模型在哪跑：`ollama`（默认）或 OpenAI-compatible 端点（`openai`/`siliconflow`/`litellm`），由 `call_candidate.sh` 统一调度，新增后端=加一个 `call_*.sh`+登记一行。 |
 | **DeepSeek** | 本项目判官调用的大模型 API，是唯一的外部依赖（需自备密钥）。 |
 
 ---
