@@ -115,6 +115,17 @@ recall, MedEthics accuracy path (parser ready in `bin/parse_choice.py`; no jsonl
 `eval/task_registry.yaml` `pending:`), live-WebSearch freshness (currently judge-knowledge; `/autoresearch`
 upgrade), probe validity `--verify` for false-premise (currently `needs_review`, only `nonexistent` scored).
 
+**Deferred — multi-model `--subset medium` run for usable per-domain routing.** The first real
+multi-model leaderboard (5 models, 2026-06-11; qwen3.5:latest > :2b > :0.8b > qwen2.5:1.5b, strict
+size-monotonic) was run on `mini`, where each specialty has **n=1** — below `build_routing.py`'s
+`min_n=5`, so all manifest `domains:` are `insufficient_data` (MoA correctly falls back to `default`,
+but per-科室 routing is unusable). To produce routable per-domain top-k, run the pool over `medium`
+(~3/specialty) or `large`: `for m in <pool>; do ./bin/eval.sh --subset medium --model $m --think off;
+done` → re-run leaderboard + build_routing (~1–1.5h/model). Also: family-3 tracks
+(probe/routing/tool_decision/live) currently have full data only for qwen3.5:2b (TIA) + qwen2.5:1.5b —
+re-run across the pool for a complete orchestration axis. **Excluded from the text pool:** vision models
+(e.g. `minicpm-v4.6:1b`) — ~4× slower, garbage text scores, OLLAMA-error-prone.
+
 ## Original task briefs (formerly `TASK.md` / `TASK2.md`, ingested verbatim then removed)
 
 **Phase 1 brief (was `TASK.md`)** — the founding question; everything in "What this is" answers it:
