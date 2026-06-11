@@ -41,6 +41,12 @@ lint:  ## ruff（line-length 99, E/F/I）
 eval:  ## 跑评测：make eval MODEL=.. [TRACK=both|book|medbench] [SUBSET=mini] [HALLU=1] [THINK=off]
 	./bin/eval.sh --track $(TRACK) $(_SUBSET) $(_HALLU) $(_THINK) $(_JUDGE) --model $(MODEL)
 
+pool:  ## 整池开考：model_pool.yaml 全部 enabled 模型 × medium（POOL_ARGS='--dry-run' 等透传）
+	./bin/run_pool.sh $(POOL_ARGS)
+
+pool-list:  ## 看模型池名单（含 disabled）
+	$(PY) bin/model_pool.py --list --all
+
 leaderboard:  ## 聚合所有结果 → 三族分轴排行榜（Markdown）
 	./bin/leaderboard.sh --md
 

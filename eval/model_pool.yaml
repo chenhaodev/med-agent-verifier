@@ -1,0 +1,57 @@
+# model_pool.yaml — 候选模型池：排行榜 / 离线 MoA 的「考生名单」，唯一真相源。
+#
+# 谁消费：bin/run_pool.sh（逐模型跑 eval.sh）· bin/model_pool.py（loader/校验）。
+# 排行榜本身仍从 eval/results/ 聚合（池只决定「跑谁」，不决定「怎么聚合」）。
+#
+# 字段（条目级覆盖 defaults）：
+#   name     必填。Ollama tag 或 OpenAI-compatible 端点上的模型名
+#   backend  ollama|openai|siliconflow|litellm（默认取 defaults.backend）
+#   think    "on"|"off"|""（空=不传 think 字段，用模型默认——非思考模型必须留空，
+#            对不支持思考的模型显式传 think 可能报错；见 bin/call_ollama.sh 头注）
+#   enabled  false=跳过（默认 true）。慢/按需的大模型放池里但默认关
+#   notes    备注（人读，不参与执行）
+#
+# 维护：ollama pull/rm 后手动同步本文件；check.sh 会校验 schema 但不校验模型是否已拉取
+# （run_pool.sh 跑到时自然报错）。视觉/embedding 模型不要加进来（见文末 excluded）。
+
+defaults:
+  backend: ollama
+  think: ""          # 默认不传 think；思考型模型逐条目设 "off"（提速 ~3×）或 "on"（全测推理）
+
+models:
+  - name: qwen3.5:latest
+    think: "off"
+    notes: 推理模型 6.6GB；mini 5 模型跑总榜第一（2026-06-11）
+
+  - name: qwen3.5:2b
+    think: "off"
+    notes: 推理模型 2.7GB；TIA/tool_decision 数据最全
+
+  - name: qwen3.5:0.8b
+    think: "off"
+    notes: 推理模型 1.0GB
+
+  - name: qwen2.5:1.5b
+    notes: 非思考模型（think 留空）；开发/冒烟默认候选
+
+  - name: hf.co/bartowski/baichuan-inc_Baichuan-M2-32B-GGUF:Q2_K
+    enabled: false
+    notes: 医学微调 32B（Q2_K 12GB）——慢，按需启用后跑医学专项对照
+
+  - name: hf.co/mradermacher/SafeMed-R1-GGUF:Q2_K
+    enabled: false
+    notes: 医学安全微调 32B（Q2_K 12GB）——慢，按需启用；MedShield/probe 对照价值高
+
+  - name: jingyaogong/minimind-3:latest
+    enabled: false
+    notes: 68MB 玩具模型，仅用于验证管线下限
+
+  # ── OpenAI-compatible 端点示例（启用前先在 .env 配好对应 *_API_KEY / *_BASE_URL）──
+  - name: Qwen/Qwen2.5-7B-Instruct
+    backend: siliconflow
+    enabled: false
+    notes: siliconflow.cn 云端对照组——同家族更大参数，量化损失为零的上界参考
+
+# ── 永不入池（记录原因，防回潮）─────────────────────────────────
+# minicpm-v4.6 / minicpm-o* / minicpm-v4.5  视觉模型：~4× 慢、文本分数垃圾、易 OLLAMA error
+# nomic-embed-text / bge-m3 / bge-reranker-v2-m3  embedding/reranker：不可生成文本

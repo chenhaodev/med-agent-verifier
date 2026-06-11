@@ -53,15 +53,22 @@ fi
 
 # 5) TASK2 特性脚本健全性（零 judge 预算：仅语法/解析/loader）
 for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing parse_choice \
-         freshness_audit parse_hallu specialty_map specialty_report calibrate_hallu; do
+         freshness_audit parse_hallu specialty_map specialty_report calibrate_hallu model_pool; do
   python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$ROOT_DIR/bin/$s.py" 2>/dev/null \
     && pass "bin/$s.py 语法 ok" || fail "bin/$s.py 语法错误"
 done
 for s in leaderboard run_sibling eval_live freshness_audit sync_gold \
          eval eval_worker call_judge call_ollama call_openai_compat call_candidate \
-         run_candidate smoke; do
+         run_candidate run_pool smoke; do
   bash -n "$ROOT_DIR/bin/$s.sh" 2>/dev/null && pass "bin/$s.sh 语法 ok" || fail "bin/$s.sh 语法错误"
 done
+# 模型池 schema 校验 + 至少 1 个 enabled（loader 内含 backend/think/重复校验）
+python3 - "$SCRIPT_DIR" <<'PYEOF' && pass "model_pool.yaml schema ok（含 enabled 模型）" || fail "model_pool.yaml schema 校验失败"
+import sys
+sys.path.insert(0, sys.argv[1])
+import model_pool
+assert any(e["enabled"] for e in model_pool.load_pool()), "池内无 enabled 模型"
+PYEOF
 # leaderboard 须能在零/部分数据下解析不崩
 python3 "$SCRIPT_DIR/leaderboard.py" >/dev/null 2>&1 \
   && pass "leaderboard.py 聚合（含零/部分数据）" || fail "leaderboard.py 聚合失败"
