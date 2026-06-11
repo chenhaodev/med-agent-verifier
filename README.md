@@ -296,11 +296,17 @@ python3 bin/select_subset.py                       # （重新）生成三档清
 
 ## TASK2 扩展 · 跨模型排行榜 → 路由清单（为离线 MoA 选型）
 
-在上文「单模型考一场」的基础上，目标**向外延一层**：用同一套验证器跑遍多个本地 Ollama 模型，
-产出**排行榜**，据此为「右任务选右模型」搭一套**离线 MoA**（route-to-top-k + aggregate，推理期
-不依赖 API；MoA 本体另建）。判官仍用 DeepSeek（评测期一次性成本，可接受）。在前述管线之上新增四类能力：
+在上文「单模型考一场」的基础上，目标**向外延一层**：用同一套验证器跑遍**模型池**（`eval/model_pool.yaml`
+声明的考生名单，本地 Ollama 为主、可混 OpenAI-compatible 端点），产出**排行榜**，据此为「右任务选右模型」
+搭一套**离线 MoA**（route-to-top-k + aggregate，推理期不依赖 API；MoA 本体另建）。判官仍用 DeepSeek
+（评测期一次性成本，可接受）。在前述管线之上新增四类能力：
 
 ```bash
+# 0·整池开考：考生名单声明在 eval/model_pool.yaml（谁参赛/哪个后端/think 开关，唯一真相源）
+./bin/run_pool.sh                  # 全部 enabled 模型 × medium（= make pool；--dry-run 先看命令）
+./bin/run_pool.sh --orchestration  # 每模型额外补跑 probe + tool_decision + routing（族③）
+python3 bin/model_pool.py --list --all   # 看名单（= make pool-list）
+
 # A·排行榜 + B·路由清单：聚合所有结果 → 排名 → 派生 routing_manifest.yaml
 ./bin/leaderboard.sh --md          # 三族分轴排行榜 + bootstrap CI + 长度/同源/污染诊断
 ./bin/leaderboard.sh --common      # 仅取所有受比模型共有 record-id（严格可比）
@@ -363,18 +369,21 @@ bin/            管线脚本（Bash 编排 + Python 数据活）
                 ├─ sync_gold.sh         vendor Track B book gold ← 姊妹项目 → data/book-gold/（可复现）
                 ├─ parse_hallu.py / parse_choice.py / specialty_map.py
                 │                       解析原子声明核查（率从计数重算）/ MCQ 选项 / 专科两级映射
+                ├─ model_pool.py / run_pool.sh
+                │                       模型池 loader（schema 校验）+ 整池开考（逐模型跑 eval，失败不中断）
                 └─ leaderboard.* / build_routing.py / gen_probes.py / gen_tool_decision.py /
                    eval_routing.py / specialty_report.py / calibrate_hallu.py /
                    eval_live.sh / run_sibling.sh / freshness_audit.*
                                         TASK2 家族：排行榜→路由清单→探针/编排/动态/时效（见上节）
 eval/           judge_prompt.md（Track B）· judge_prompt_reference.md（Track A）
                 · judge_prompt_{hallu,probe,tia,freshness}.md（声明核查/探针/工具决策/时效判官规约）
+                · model_pool.yaml（候选模型池：谁参赛/后端/think/enabled，整池开考的唯一真相源）
                 · task_registry.yaml（任务→指标→规约）· subsets/{mini,medium,large}.yaml（分层子集，已生成）
                 · probes/（冻结探针 + tool_decision 集）· routing_manifest.yaml（B 路由清单产物）
                 · METRICS.md（指标效度）· calibration/hallu_gold.yaml（判官标定集）· results/（git 忽略）
 data/           medbench-agent-95/  Track A 数据：12 任务 .jsonl（30 题/个）+ .md 规约
                 book-gold/{internists,psy}.yaml  Track B vendored 快照 + SOURCE.md（provenance）
-tests/          stdlib unittest 套件（33 用例：解析器/指标/loader/候选后端调度），`make test` 或随 check.sh 跑
+tests/          stdlib unittest 套件（39 用例：解析器/指标/loader/候选后端调度/模型池），`make test` 或随 check.sh 跑
 Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval/leaderboard/calibrate/…）
 .env.example    判官密钥（DEEPSEEK_*）+ 候选配置（CANDIDATE_BACKEND + OLLAMA_*/OPENAI_*/SILICONFLOW_*/LITELLM_*）
 ```

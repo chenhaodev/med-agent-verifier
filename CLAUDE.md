@@ -42,7 +42,7 @@ make help                                 # discoverable entry point: sync/check
 pip install -r requirements.txt          # only pyyaml  (= make install)
 cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
 ./bin/sync_gold.sh                        # vendor Track B book gold → data/book-gold/ (= make sync; paths via MED_AGENT_* env)
-python3 -m unittest discover -s tests     # 33-test stdlib suite (= make test; also run inside check.sh)
+python3 -m unittest discover -s tests     # 39-test stdlib suite (= make test; also run inside check.sh)
 ruff check bin/*.py tests/                # lint: line-length 99, select E/F/I (= make lint)
 ./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
@@ -59,6 +59,7 @@ python3 bin/gen_probes.py && python3 bin/gen_tool_decision.py         # (re)gene
 ./bin/eval.sh --track tool_decision --model qwen3.5                   # F2: tool-call decision (TIA, symmetric)
 python3 bin/eval_routing.py --model qwen3.5                           # F1: specialty-routing accuracy (judge-free, 0 DeepSeek)
 echo "我爸有高血压…" | ./bin/eval_live.sh --agent internists --model qwen3.5  # C: judge vs FRESH sibling answer
+./bin/run_pool.sh [--dry-run|--orchestration]                        # 整池开考: every enabled model in eval/model_pool.yaml × medium (= make pool; pool list: make pool-list)
 ./bin/leaderboard.sh --md                                            # A: cross-model leaderboard (3 metric families, bootstrap CIs)
 python3 bin/build_routing.py                                         # B: eval/routing_manifest.yaml (top-k + orchestrator)
 ./bin/freshness_audit.sh --domain cardiology                        # D: flag stale gold vs current guidelines (read-only)
@@ -122,11 +123,13 @@ multi-model leaderboard (5 models, 2026-06-11; qwen3.5:latest > :2b > :0.8b > qw
 size-monotonic) was run on `mini`, where each specialty has **n=1** — below `build_routing.py`'s
 `min_n=5`, so all manifest `domains:` are `insufficient_data` (MoA correctly falls back to `default`,
 but per-科室 routing is unusable). To produce routable per-domain top-k, run the pool over `medium`
-(~3/specialty) or `large`: `for m in <pool>; do ./bin/eval.sh --subset medium --model $m --think off;
-done` → re-run leaderboard + build_routing (~1–1.5h/model). Also: family-3 tracks
-(probe/routing/tool_decision/live) currently have full data only for qwen3.5:2b (TIA) + qwen2.5:1.5b —
-re-run across the pool for a complete orchestration axis. **Excluded from the text pool:** vision models
-(e.g. `minicpm-v4.6:1b`) — ~4× slower, garbage text scores, OLLAMA-error-prone.
+(~3/specialty) or `large`: **`./bin/run_pool.sh`** (the pool is declared in `eval/model_pool.yaml`;
+default = medium × all enabled models, per-entry think; ~1–1.5h/model) → re-run leaderboard +
+build_routing. Also: family-3 tracks (probe/routing/tool_decision/live) currently have full data only
+for qwen3.5:2b (TIA) + qwen2.5:1.5b — `./bin/run_pool.sh --orchestration` fills that axis pool-wide.
+**Excluded from the text pool** (codified in `model_pool.yaml`'s 永不入池 list): vision models
+(e.g. `minicpm-v4.6:1b`) — ~4× slower, garbage text scores, OLLAMA-error-prone — and
+embedding/reranker models (cannot generate).
 
 ## Original task briefs (formerly `TASK.md` / `TASK2.md`, ingested verbatim then removed)
 
