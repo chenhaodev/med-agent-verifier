@@ -406,7 +406,7 @@ eval/           judge_prompt.md（Track B）· judge_prompt_reference.md（Track
                 · METRICS.md（指标效度）· calibration/hallu_gold.yaml（判官标定集）· results/（git 忽略）
 data/           medbench-agent-95/  Track A 数据：12 任务 .jsonl（30 题/个）+ .md 规约
                 book-gold/{internists,psy}.yaml  Track B vendored 快照 + SOURCE.md（provenance）
-tests/          stdlib unittest 套件（39 用例：解析器/指标/loader/候选后端调度/模型池），`make test` 或随 check.sh 跑
+tests/          stdlib unittest 套件（40 用例：解析器/指标/loader/候选后端调度/模型池），`make test` 或随 check.sh 跑
 Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval/leaderboard/calibrate/…）
 .env.example    判官密钥（DEEPSEEK_*）+ 候选配置（CANDIDATE_BACKEND + OLLAMA_*/OPENAI_*/SILICONFLOW_*/LITELLM_*）
 ```

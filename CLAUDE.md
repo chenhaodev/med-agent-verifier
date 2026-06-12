@@ -42,7 +42,7 @@ make help                                 # discoverable entry point: sync/check
 pip install -r requirements.txt          # only pyyaml  (= make install)
 cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
 ./bin/sync_gold.sh                        # vendor Track B book gold → data/book-gold/ (= make sync; paths via MED_AGENT_* env)
-python3 -m unittest discover -s tests     # 39-test stdlib suite (= make test; also run inside check.sh)
+python3 -m unittest discover -s tests     # 40-test stdlib suite (= make test; also run inside check.sh)
 ruff check bin/*.py tests/                # lint: line-length 99, select E/F/I (= make lint)
 ./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
