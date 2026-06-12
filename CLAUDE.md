@@ -135,6 +135,37 @@ noise-level; regenerate at default min_n=5 after the full `--track book` pool ru
 (e.g. `minicpm-v4.6:1b`) — ~4× slower, garbage text scores, OLLAMA-error-prone — and
 embedding/reranker models (cannot generate).
 
+**Full-book pool run: partial, killed by user (started 2026-06-12 ~20:30, killed 2026-06-13 06:45
+at 553/940 questions, ~65s/q).** `./bin/run_pool.sh --track book` completed the **top-2 models on the
+full 235-question Track B** before termination; results persisted in `eval/results/`
+(`2026-06-12_20-33-40_book.json` = latest, `2026-06-13_02-16-07_book.json` = 2b; 0.8b was 87/235
+in-flight — partial results discarded with its tmp workdir; 1.5b never started). Headline (full Track B):
+
+| model | 综合 0–40 | pass rate | det. halluc | ctx appropriate |
+|---|---|---|---|---|
+| qwen3.5:latest | 35.5 | 72.8% (171/235, errors 0) | 0.9% (2/235) | 97% (overconfident 3%) |
+| qwen3.5:2b | 29.7 | 43.2% (101/234, 1 infra-excluded) | 0.9% (2/234) | 68% (**overconfident 32%**) |
+
+Full-scale findings vs the medium run: ordering unchanged (latest > 2b) but the gap widens to ~6 pts;
+the deterministic-hallucination floor goes 0 → 2 hits/model (only visible at n=235); and
+context-awareness becomes sharply discriminative (97% vs 68%). Judge catches verified as real on spot
+check (e.g. 沙丁胺醇「喷鼻」用法错误 18/40, 甲氨蝶呤前后矛盾). The small models (0.8b/1.5b) were
+strictly dominated on every axis in the medium run and are **not routing candidates** — their full-book
+data is optional, not blocking.
+
+**未来规划 (as of 2026-06-13):**
+1. **Regenerate leaderboard + manifest at default `min_n=5`** — `./bin/leaderboard.sh --md &&
+   python3 bin/build_routing.py`. The two completed models are exactly the top-2 routing candidates and
+   now have n≈6/domain, so a statistically defensible per-domain manifest over {latest, 2b} is already
+   buildable; 0.8b/1.5b stay on their medium-run data (sufficient for the size-ladder narrative).
+2. **Refresh README 「看它怎么测 · 第三幕」snapshot** with the full-book numbers (and the manifest
+   告警 blockquote in 「从一场考试到一张路由清单」 once the min_n=5 manifest replaces the provisional
+   `--min-n 2` one).
+3. *Optional:* finish `--track book` for 0.8b/1.5b (~5–6h) only if small-model per-domain evidence is
+   ever needed; the killed 0.8b partial must be re-run from scratch (generation cache was off).
+4. Then resume the **Still deferred** list above (structured-task judge overrides, MedEthics path,
+   live-WebSearch freshness, false-premise probe `--verify`) — unchanged in priority.
+
 ## Original task briefs (formerly `TASK.md` / `TASK2.md`, ingested verbatim then removed)
 
 **Phase 1 brief (was `TASK.md`)** — the founding question; everything in "What this is" answers it:
