@@ -118,15 +118,19 @@ recall, MedEthics accuracy path (parser ready in `bin/parse_choice.py`; no jsonl
 `eval/task_registry.yaml` `pending:`), live-WebSearch freshness (currently judge-knowledge; `/autoresearch`
 upgrade), probe validity `--verify` for false-premise (currently `needs_review`, only `nonexistent` scored).
 
-**Deferred — multi-model `--subset medium` run for usable per-domain routing.** The first real
-multi-model leaderboard (5 models, 2026-06-11; qwen3.5:latest > :2b > :0.8b > qwen2.5:1.5b, strict
-size-monotonic) was run on `mini`, where each specialty has **n=1** — below `build_routing.py`'s
-`min_n=5`, so all manifest `domains:` are `insufficient_data` (MoA correctly falls back to `default`,
-but per-科室 routing is unusable). To produce routable per-domain top-k, run the pool over `medium`
-(~3/specialty) or `large`: **`./bin/run_pool.sh`** (the pool is declared in `eval/model_pool.yaml`;
-default = medium × all enabled models, per-entry think; ~1–1.5h/model) → re-run leaderboard +
-build_routing. Also: family-3 tracks (probe/routing/tool_decision/live) currently have full data only
-for qwen3.5:2b (TIA) + qwen2.5:1.5b — `./bin/run_pool.sh --orchestration` fills that axis pool-wide.
+**Pool run done (2026-06-11 night, `./bin/run_pool.sh --orchestration`: 4 models × medium + 族③,
+~6.5h, exit 0, zero pipeline errors).** The leaderboard now has stable 内科/精神科 rollups (n=32/model,
+strict size-monotonic: qwen3.5:latest > :2b > qwen2.5:1.5b > qwen3.5:0.8b) and a **pool-wide
+orchestration axis** — specialty_routing 0.77→0.41, TIA 0.80→0.60, nonexistent-probe 0.60→**0.00**
+down the size ladder; orchestrator nomination = qwen3.5:latest (composite 0.785). **Open: per-domain
+routing is still gated.** `medium` yields only **n≈2/domain** (not the ~3 previously assumed) — below
+`build_routing.py` `min_n=5`, so all 38 manifest `domains:` remain `insufficient_data` at defaults
+(MoA falls back correctly). Two unlocks: (a) `./bin/run_pool.sh --track book` (full 235 Track B →
+n≈6/domain, crosses min_n=5; ~2–3h/model) for a statistically defensible manifest, or (b)
+`python3 bin/build_routing.py --min-n 2` for a provisional one (27/38 domains routable; qwen3.5:latest
+top-1 in 22, qwen3.5:2b in 5 — but n=2 rankings are noise-level). **Current on-disk manifest = the
+provisional `--min-n 2` version (chosen 2026-06-12)** — MoA consumers should treat per-domain ranks as
+noise-level; regenerate at default min_n=5 after the full `--track book` pool run.
 **Excluded from the text pool** (codified in `model_pool.yaml`'s 永不入池 list): vision models
 (e.g. `minicpm-v4.6:1b`) — ~4× slower, garbage text scores, OLLAMA-error-prone — and
 embedding/reranker models (cannot generate).
