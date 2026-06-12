@@ -3,8 +3,10 @@
 > 给**本地 Ollama 模型**（或任意 OpenAI-compatible 端点上的模型）做一场中文医学考试，
 > 并由更强的模型当「考官」逐题打分。
 > 关键在于：用**两套互补的权威标准答案**同时衡量——既看「会不会」，也看「会不会乱编」。
+> 考完一个模型只是上半程：**考遍整个模型池**（`eval/model_pool.yaml`）→ 跨模型排行榜 →
+> **路由清单**（`routing_manifest.yaml`，为离线 MoA 选型）才是终点。
 
-`2 路 gold（信任锚）` · `12 项 Agent 能力 + 37 个专科` · `候选 = Ollama｜OpenAI-API｜siliconflow.cn｜LiteLLM` · `判官 = DeepSeek` · `Python + Bash`
+`2 路 gold（信任锚）` · `12 项 Agent 能力 + 37 个专科` · `候选 = Ollama｜OpenAI-API｜siliconflow.cn｜LiteLLM` · `判官 = DeepSeek` · `排行榜 → 路由清单（离线 MoA 选型）` · `Python + Bash`
 
 ---
 
@@ -17,7 +19,10 @@ stronger model (DeepSeek) against **two independent gold standards** — (A) a 9
 leaderboard run (12 capabilities × 30 questions, `gold_type=reference`) and (B) two textbook-distilled
 sibling agents with page-traceable criteria (235 questions / 37 specialties, `gold_type=criteria`,
 vendored into `data/book-gold/`). Capability and clinical integrity are measured on **separate axes,
-never blended**.
+never blended**. Scoring one model is only half the pipeline: the **end product** is a cross-model
+leaderboard over the whole model pool (`eval/model_pool.yaml`) plus a derived **routing manifest**
+(`eval/routing_manifest.yaml`) — the model-selection input for a separately-built offline
+mixture-of-agents (MoA).
 
 **Why two golds**: a model can ace the capability track yet flunk the integrity track (miss safety
 warnings, cite no sources) — see the 38/40 vs 29/40 contrast in 「看它怎么测」 below.
@@ -53,12 +58,17 @@ offline mixture-of-agents, built separately).
 2. **诚信卷**：两个「逐句能翻回医学教材页码」的姊妹项目（内科 + 精神科）出的 **235 道题、37 个专科**，每题都标了
    「**必须警示什么**」「**绝对不能说什么**」——测「这个模型会不会漏掉安全提醒、会不会乱开药、哪个专科是短板」。
 
+**考完之后干什么**：本地模型不止一个，真正的问题是「**这么多模型，谁该干哪活**」。所以同一把尺子
+还要**考遍整个模型池**——所有成绩聚合成一张**跨模型排行榜**，再派生出一份「哪个专科/任务该派哪个
+模型」的**路由清单**，直接喂给之后的离线多模型协作系统（MoA，本体另建）。考试是手段，选型才是目的。
+
 > **一句话**：不是问「这个本地模型答得顺不顺」，而是**拿两把不同的尺子同时量**——
-> 一把量广度能力（对照 95 分榜单），一把量临床诚信（对照可溯源的教材标准），最后给出一张能看出短板在哪的成绩单。
+> 一把量广度能力（对照 95 分榜单），一把量临床诚信（对照可溯源的教材标准）——给每个模型一张
+> 能看出短板在哪的成绩单；再把整池模型的成绩单排成榜，落成一份「右任务选右模型」的路由清单。
 
 ---
 
-## 核心概念（先读这 5 个词）
+## 核心概念（先读这 7 个词）
 
 后面反复用到，先用大白话讲清楚（更全的解释见文末[名词速查](#附录名词速查)）：
 
@@ -72,14 +82,20 @@ offline mixture-of-agents, built separately).
   两者是不同的信任锚，**都当一等公民**，绝不混为一谈。
 - **幻觉率**：衡量「会不会乱编」。三档口径，从便宜到正式：**硬地板**＝答案命中「绝对不能说的字面串」（纯字符串比对，零 API，100% 可复现）；
   **默认口径**＝判官给每条回答打的多源溯源二元标签（book/guideline/unsupported，排行榜在无 `--hallu` 数据时的回退）；
-  **正式口径**＝加 `--hallu` 后把回答拆成原子临床声明逐条核查的 claim 级 `unsupported_rate`（对标文献，见 TASK2 节）。
+  **正式口径**＝加 `--hallu` 后把回答拆成原子临床声明逐条核查的 claim 级 `unsupported_rate`
+  （对标文献，见[从一场考试到一张路由清单](#从一场考试到一张路由清单整池开考--排行榜--离线-moa-选型)）。
 - **可控子集**：能按任意维度切出一小撮题来跑——按路、按任务、按专科、按 id、限量、抽样——方便快速迭代，不必每次全量。
+- **模型池 / 整池开考**：考生名单声明在 `eval/model_pool.yaml`（谁参赛、走哪个后端、think 开关，唯一真相源），
+  `./bin/run_pool.sh` 一条命令让全部 enabled 模型逐个开考——单模型考试到多模型排行的桥。
+- **排行榜 → 路由清单**：整池成绩聚合成**跨模型排行榜**（三个度量族分轴呈现、永不合并），再派生
+  `eval/routing_manifest.yaml`——「哪个专科/任务派哪个模型 + 谁当主模型」的选型清单，离线 MoA（本体另建）直接消费。
 
 ---
 
 ## 看它怎么测
 
-一条命令就能跑一场分专科 / 分任务的考试。以下两段均为**真实评测输出（节选，候选 = `qwen3.5` 思考关）**。
+一条命令就能跑一场分专科 / 分任务的考试。以下均为**真实评测输出**（卷一/卷二为单模型节选，
+候选 = `qwen3.5` 思考关；第三幕为整池真实榜单）。
 
 ### 卷一 · 能力卷（Track A，对照 95 分榜单）
 
@@ -129,6 +145,33 @@ offline mixture-of-agents, built separately).
 > **两卷一起看才是重点**：只看 MedBench 的 38/40 会以为它很强；教材诚信卷的 29/40 才暴露出
 > **溯源弱、偶有安全遗漏**。这就是本项目坚持「两路 gold 都当一等公民」的全部理由。
 
+### 第三幕 · 同一把尺子量一池模型（整池开考 → 排行榜）
+
+单模型考顺了，就把 `eval/model_pool.yaml` 里全部考生拉出来考同一份卷，成绩聚合成跨模型排行榜：
+
+```bash
+./bin/run_pool.sh --orchestration   # 整池开考：每个 enabled 模型 × medium 子集 + 编排/鲁棒性附加项
+./bin/leaderboard.sh --md           # 聚合全部结果 → 跨模型排行榜（分轴 + bootstrap CI）
+```
+
+**当前榜单头条读数**（2026-06-11 整池跑：4 模型 × medium 子集 + 编排项，~6.5h，零管线错误）：
+
+| 模型 | 内科 0–40 (n=32) | 精神科 0–40 (n=32) | 专科路由 acc (n=235) | 工具决策 TIA (n=30) | 不存在实体探针 acc (n=10) |
+|------|------|------|------|------|------|
+| qwen3.5:latest | **35.7** | **37.5** | **0.77** | **0.80** | 0.60 |
+| qwen3.5:2b | 31.8 | 30.2 | 0.67 | 0.70 | 0.40 |
+| qwen2.5:1.5b | 28.5 | 25.5 | 0.44 | 0.67 | 0.30 |
+| qwen3.5:0.8b | 24.3 | 21.8 | 0.41 | 0.60 | **0.00** |
+
+- **排名严格按参数量单调**（两科室 rollup + 全部编排指标）——验证了这套尺子有区分度，不是噪声。
+- **orchestrator 提名 = qwen3.5:latest**（composite ≈0.78）：MoA 主模型用它做分诊 + 工具决策。
+- **幻觉探针最能拉开差距**：0.8b 在全部 10 条「不存在实体」探针上一本正经地编造（acc 0.00）；
+  连 latest 也编了 4/10，且 TIA 漏判全是「该调工具而没调」——小模型不能裸用，MoA 需要兜底层。
+
+> 排行榜不是终点——它再派生出**路由清单**（哪个专科派哪个模型 + 谁当主模型），这才是给离线 MoA
+> 的最终交付。怎么生成、当前清单的统计学告警，见
+> [从一场考试到一张路由清单](#从一场考试到一张路由清单整池开考--排行榜--离线-moa-选型)。
+
 ---
 
 ## 它能测出什么
@@ -141,10 +184,14 @@ offline mixture-of-agents, built separately).
 | **每专科能力热力图** | 哪个科强、哪个科弱（如强心内、弱血液） | Track B（criteria，按 `domain` 分组） |
 | **幻觉率** | 会不会乱编：三档口径（字面禁止串硬地板 → 判官逐答溯源二元 → claim 级 `unsupported_rate`，`--hallu`） | Track B |
 | **安全性** | 该警示的有没有警示、有没有越权处方 | 两路（判官 + 教材 `must_warn`） |
-| **编排与鲁棒性准确率** | 当 MoA 主模型行不行：专科路由、工具调用决策（TIA）、幻觉探针拒答 | 独立冻结集（`probe`/`tool_decision` 轨，见 TASK2 节） |
+| **编排与鲁棒性准确率** | 当 MoA 主模型行不行：专科路由、工具调用决策（TIA）、幻觉探针拒答 | 独立冻结集（`probe`/`tool_decision` 轨，见[从一场考试到一张路由清单](#从一场考试到一张路由清单整池开考--排行榜--离线-moa-选型)） |
 
-> 上面「看它怎么测」里的数字来自一次**小切片冒烟**（思考关、每组 1 题），用于演示报表形态；
-> 完整结论请自行跑全量（见[门禁与评测](#门禁与评测)）。原始结果落在 `eval/results/`（已被 git 忽略）。
+多模型跑完，这些指标聚合成**跨模型排行榜**，再派生**路由清单**——见
+[从一场考试到一张路由清单](#从一场考试到一张路由清单整池开考--排行榜--离线-moa-选型)。
+
+> 「看它怎么测」卷一/卷二的数字来自一次**小切片冒烟**（思考关、每组 1 题），用于演示报表形态，
+> 完整结论请自行跑全量（见[门禁与评测](#门禁与评测)）；第三幕的榜单来自**真实整池跑**。
+> 原始结果落在 `eval/results/`（已被 git 忽略）。
 
 ---
 
@@ -187,14 +234,14 @@ flowchart TB
     HC --> JUDGE["判官评分<br/>call_judge.sh → DeepSeek<br/>reference / criteria 两套规约"]
     JUDGE --> PARSE["parse_judge.py<br/>稳健解析四维分"]
     PARSE --> REP["报告<br/>每专科热力图 · 幻觉率<br/>每任务能力 · gap-to-95"]
-    REP --> LB["TASK2 · leaderboard.sh<br/>跨模型排行榜（3 族分轴 + CI）"]
+    REP --> LB["leaderboard.sh<br/>跨模型排行榜（3 族分轴 + CI）"]
     LB --> RM["build_routing.py<br/>routing_manifest.yaml<br/>（离线 MoA 选型）"]
 ```
 
 > 不支持 mermaid 的查看器，可读作：
 > **两路 gold → `load_dataset.py` 归一化（按 `gold_type` 分流）→ 切子集 → `call_candidate.sh` 候选作答（后端调度）→
 > （Track B）确定性幻觉检查 → `call_judge.sh` 判官评分（按路选规约）→ `parse_judge.py` 解析 → 分专科/分任务成表 →
-> 多模型结果再聚合成排行榜 → 路由清单（TASK2 节）**。
+> 多模型结果再聚合成排行榜 → 路由清单（下半程，见〈从一场考试到一张路由清单〉）**。
 
 名词对照：**候选/DUT**＝被测本地模型；**判官/judge**＝打分的 DeepSeek；**gold_type**＝`reference`（含参考答案）或
 `criteria`（含评判要点）；**统一化数据接口**＝两路数据被归一化成同一条下游记录。
@@ -221,6 +268,9 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 ./bin/eval.sh --track book --domain cardiology --limit 3 --model qwen3.5      # 心内科诚信卷 3 题
 ./bin/eval.sh --track medbench --task MedShield --limit 3 --model qwen3.5     # 风险拦截能力卷 3 题
 ./bin/eval.sh --track both --sample 1 --model qwen3.5 --think off             # 两路各抽一题，思考关（快）
+
+# ⑥ 单模型考顺了 → 整池开考 → 排行榜 → 路由清单（管线下半程，见〈从一场考试到一张路由清单〉）
+./bin/run_pool.sh && ./bin/leaderboard.sh --md && python3 bin/build_routing.py
 ```
 
 > 注：判官是**唯一的外部依赖**（DeepSeek API 密钥）；候选模型完全在本地 Ollama 上跑。
@@ -232,7 +282,7 @@ cp .env.example .env                             # 把密钥填进 .env 的 DEEP
 | 参数 | 含义 |
 |------|------|
 | `--subset mini \| medium \| large` | 用分层 mini-bench 子集（见下） |
-| `--track book \| medbench \| both \| probe \| tool_decision` | 选哪路（默认 `both`）；`probe`/`tool_decision` 是 TASK2 冻结集（见下文 TASK2 节） |
+| `--track book \| medbench \| both \| probe \| tool_decision` | 选哪路（默认 `both`）；`probe`/`tool_decision` 是冻结探针集（见〈从一场考试到一张路由清单〉） |
 | `--task T1,T2` | 指定任务（`MedCOT…` 或诚信卷的 `internists` / `psy`） |
 | `--domain S1,S2` | 指定专科（**仅 Track B**，如 `cardiology`；会排除全部 Track A 并提示） |
 | `--id ID` | 精确跑单条记录 |
@@ -297,49 +347,56 @@ python3 bin/select_subset.py                       # （重新）生成三档清
 
 ---
 
-## TASK2 扩展 · 跨模型排行榜 → 路由清单（为离线 MoA 选型）
+## 从一场考试到一张路由清单（整池开考 → 排行榜 → 离线 MoA 选型）
 
-在上文「单模型考一场」的基础上，目标**向外延一层**：用同一套验证器跑遍**模型池**（`eval/model_pool.yaml`
-声明的考生名单，本地 Ollama 为主、可混 OpenAI-compatible 端点），产出**排行榜**，据此为「右任务选右模型」
-搭一套**离线 MoA**（route-to-top-k + aggregate，推理期不依赖 API；MoA 本体另建）。判官仍用 DeepSeek
-（评测期一次性成本，可接受）。在前述管线之上新增四类能力：
+这是同一条管线的**下半程**，也是立项时的最终目标（工程内部代号 **TASK2**，`bin/` 脚本与
+[`CLAUDE.md`](./CLAUDE.md) 沿用该名）：用同一套验证器跑遍**模型池**（`eval/model_pool.yaml`
+声明的考生名单，本地 Ollama 为主、可混 OpenAI-compatible 端点），产出**排行榜**，再为
+「右任务选右模型」派生**路由清单**——这就是离线 MoA（route-to-top-k + aggregate，推理期不依赖
+API；本体另建）的选型输入。判官仍用 DeepSeek（评测期一次性成本，可接受）。
+
+### 主线：整池开考 → 排行榜 → 路由清单
 
 ```bash
-# 0·整池开考：考生名单声明在 eval/model_pool.yaml（谁参赛/哪个后端/think 开关，唯一真相源）
+# 整池开考：考生名单声明在 eval/model_pool.yaml（谁参赛/哪个后端/think 开关，唯一真相源）
 ./bin/run_pool.sh                  # 全部 enabled 模型 × medium（= make pool；--dry-run 先看命令）
 ./bin/run_pool.sh --orchestration  # 每模型额外补跑 probe + tool_decision + routing（族③）
 python3 bin/model_pool.py --list --all   # 看名单（= make pool-list）
 
-# A·排行榜 + B·路由清单：聚合所有结果 → 排名 → 派生 routing_manifest.yaml
+# 排行榜：聚合所有结果 → 三族分轴排名
 ./bin/leaderboard.sh --md          # 三族分轴排行榜 + bootstrap CI + 长度/同源/污染诊断
 ./bin/leaderboard.sh --common      # 仅取所有受比模型共有 record-id（严格可比）
+
+# 路由清单：排行榜 → routing_manifest.yaml（离线 MoA 的选型输入）
 python3 bin/build_routing.py       # top-k/桶 + CI 重叠并列 + orchestrator 主模型提名
-
-# E·幻觉新度量：多源溯源判官 + 主动探针（不存在实体拒答 / 假前提纠偏）
-python3 bin/gen_probes.py          # 冻结探针集（nonexistent=verified；false_premise=needs_review）
-./bin/eval.sh --track probe --model qwen3.5
-
-# E2·原子声明级幻觉（对标文献：FActScore / HealthBench-Hallu）：把回答拆成原子临床声明逐条核查
-./bin/eval.sh --track book --hallu --model qwen3.5    # → claim 级 unsupported_rate + factual_precision（not_sure 弃权不计幻觉）
-python3 bin/specialty_report.py                       # 专科覆盖盘点（judge-free，零预算）：内科▸system▸domain / 精神科▸DSM
-python3 bin/calibrate_hallu.py                        # 标定幻觉判官检测准确度（MedHallu 式 P/R/F1，含 hard 微妙幻觉层）→ 见 eval/METRICS.md
-
-# F·编排能力（MoA 主模型技能）：选择科室 + 是否调用工具
-python3 bin/eval_routing.py --model qwen3.5                 # 专科路由准确率（judge-free，零 DeepSeek）
-python3 bin/gen_tool_decision.py && ./bin/eval.sh --track tool_decision --model qwen3.5   # TIA 对称计分
-
-# C·动态评测：任意疾病问题 → 兄弟 Agent 现答作参考 → 评候选（抗 MedBench 记忆/污染）
-echo "我爸有高血压，平时饮食要注意什么？" | ./bin/eval_live.sh --agent internists --model qwen3.5
-
-# D·gold 时效审计（只读，绝不改 gold）：标记疑似过时的教材要点
-./bin/freshness_audit.sh --domain cardiology
 ```
+
+榜单头条读数见上文[看它怎么测·第三幕](#看它怎么测)；完整榜单（`eval/leaderboard.{json,md}`、
+`eval/routing_manifest.yaml`）是派生产物、git 忽略——随时用上面命令重生。
+
+> **统计学告警：分科路由当前是临时版。** medium 子集每专科仅 n≈2（< `min_n=5`），盘上 manifest 由
+> `--min-n 2` 生成（27/38 域可路由，38 域 = 37 专科 + live 哨兵；**qwen3.5:2b 在消化/老年/妇女健康等
+> 5 个专科反超 latest**——分科路由确有价值，但 n=2 排名属噪声级）。统计上站得住的版本需整池跑全量
+> 诚信卷：`./bin/run_pool.sh --track book`。
 
 **三个度量族，互不可比，永不合并**：① 能力（Track A，0–40/任务，⚠公开榜数据有污染风险）·
 ② 专科（Track B，0–40/**专科 + 内科/精神科 rollup**，幻觉 `unsupported_rate`；旧黑名单降级为硬安全地板）·
 ③ 编排与鲁棒性（Accuracy：routing/TIA/探针/live）。排行榜分轴呈现；`routing_manifest.yaml` 让
 ③（抗污染）权重高于 ①。判官有效性诊断（长度偏置、同源 self-preference、校准漂移、HealthBench
 context-awareness 的 `ctx_appropriate_rate`）随排行榜一并输出。
+
+### 幻觉与诚信深测（专科族的正式口径 + 主动探针）
+
+```bash
+# 主动探针：不存在实体拒答 / 假前提纠偏（多源溯源判官）
+python3 bin/gen_probes.py          # 冻结探针集（nonexistent=verified；false_premise=needs_review）
+./bin/eval.sh --track probe --model qwen3.5
+
+# 原子声明级幻觉（对标文献：FActScore / HealthBench-Hallu）：把回答拆成原子临床声明逐条核查
+./bin/eval.sh --track book --hallu --model qwen3.5    # → claim 级 unsupported_rate + factual_precision（not_sure 弃权不计幻觉）
+python3 bin/specialty_report.py                       # 专科覆盖盘点（judge-free，零预算）：内科▸system▸domain / 精神科▸DSM
+python3 bin/calibrate_hallu.py                        # 标定幻觉判官检测准确度（MedHallu 式 P/R/F1，含 hard 微妙幻觉层）→ 见 eval/METRICS.md
+```
 
 > **幻觉率怎么对标文献**（即「核心概念」三档口径在排行榜上的落地）：无 `--hallu` 时排行榜回退到
 > 第二档——判官逐答的多源溯源二元标签（book/guideline/unsupported，`unsupported_metric=response`）。
@@ -349,28 +406,25 @@ context-awareness 的 `ctx_appropriate_rate`）随排行榜一并输出。
 > `not_sure` 弃权类（**MedHallu** 发现可显著提升可靠性）单列、不计幻觉。排行榜专科族优先用 claim 级率
 > （标 `unsupported_metric=claim`），无 `--hallu` 时回退到逐答二元口径。
 
+### 编排能力（MoA 主模型技能）：选科室 + 是否调用工具
+
+```bash
+python3 bin/eval_routing.py --model qwen3.5                 # 专科路由准确率（judge-free，零 DeepSeek）
+python3 bin/gen_tool_decision.py && ./bin/eval.sh --track tool_decision --model qwen3.5   # TIA 对称计分
+```
+
+### 动态与时效（抗污染 + gold 保鲜）
+
+```bash
+# 动态评测：任意疾病问题 → 兄弟 Agent 现答作参考 → 评候选（抗 MedBench 记忆/污染）
+echo "我爸有高血压，平时饮食要注意什么？" | ./bin/eval_live.sh --agent internists --model qwen3.5
+
+# gold 时效审计（只读，绝不改 gold）：标记疑似过时的教材要点
+./bin/freshness_audit.sh --domain cardiology
+```
+
 > 诚实边界：`live` 路测的是「与静态书本 Agent 的一致性」，非绝对真值（兄弟知识也是书本+2024 快照、
 > 且依赖 DeepSeek）；`freshness` v1 用判官自身指南知识判时效，真·实时 websearch 是 `/autoresearch` 升级路径。
-
-### 当前榜单快照（2026-06-11 整池跑：4 模型 × medium 子集 + 族③，~6.5h，零管线错误）
-
-完整榜单（`eval/leaderboard.{json,md}`、`eval/routing_manifest.yaml`）是派生产物、git 忽略——
-用上节命令随时重生。这里只留**头条读数**作锚点：
-
-| 模型 | 内科 0–40 (n=32) | 精神科 0–40 (n=32) | 专科路由 acc (n=235) | 工具决策 TIA (n=30) | 不存在实体探针 acc (n=10) |
-|------|------|------|------|------|------|
-| qwen3.5:latest | **35.7** | **37.5** | **0.77** | **0.80** | 0.60 |
-| qwen3.5:2b | 31.8 | 30.2 | 0.67 | 0.70 | 0.40 |
-| qwen2.5:1.5b | 28.5 | 25.5 | 0.44 | 0.67 | 0.30 |
-| qwen3.5:0.8b | 24.3 | 21.8 | 0.41 | 0.60 | **0.00** |
-
-- **排名严格按参数量单调**（两科室 rollup + 全部编排指标）——验证了这套尺子有区分度，不是噪声。
-- **orchestrator 提名 = qwen3.5:latest**（composite ≈0.78）：MoA 主模型用它做分诊 + 工具决策。
-- **幻觉探针最能拉开差距**：0.8b 在全部 10 条「不存在实体」探针上一本正经地编造（acc 0.00）；
-  连 latest 也编了 4/10，且 TIA 漏判全是「该调工具而没调」——小模型不能裸用，MoA 需要兜底层。
-- **分科路由当前是临时版**：medium 子集每专科仅 n≈2（< `min_n=5`），盘上 manifest 由 `--min-n 2`
-  生成（27/38 域可路由，38 域 = 37 专科 + live 哨兵；**qwen3.5:2b 在消化/老年/妇女健康等 5 个专科反超 latest**——分科路由
-  确有价值，但 n=2 排名属噪声级）。统计上站得住的版本需整池跑全量诚信卷：`./bin/run_pool.sh --track book`。
 
 ---
 
@@ -397,7 +451,7 @@ bin/            管线脚本（Bash 编排 + Python 数据活）
                 └─ leaderboard.* / build_routing.py / gen_probes.py / gen_tool_decision.py /
                    eval_routing.py / specialty_report.py / calibrate_hallu.py /
                    eval_live.sh / run_sibling.sh / freshness_audit.*
-                                        TASK2 家族：排行榜→路由清单→探针/编排/动态/时效（见上节）
+                                        排行榜→路由清单家族（内部代号 TASK2）：探针/编排/动态/时效（见上节）
 eval/           judge_prompt.md（Track B）· judge_prompt_reference.md（Track A）
                 · judge_prompt_{hallu,probe,tia,freshness}.md（声明核查/探针/工具决策/时效判官规约）
                 · model_pool.yaml（候选模型池：谁参赛/后端/think/enabled，整池开考的唯一真相源）
@@ -438,7 +492,7 @@ Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval
 
 ## 附录：名词速查
 
-承重术语已在开头「[核心概念](#核心概念先读这-5-个词)」用大白话讲过，这里是完整版——左边的词在正文里出现过，右边是解释。
+承重术语已在开头「[核心概念](#核心概念先读这-7-个词)」用大白话讲过，这里是完整版——左边的词在正文里出现过，右边是解释。
 
 | 名词 | 一句话解释 |
 |------|------------|
@@ -455,6 +509,8 @@ Makefile        任务入口（`make help` 列全部：sync/check/test/lint/eval
 | **Ollama** | 在本机跑大模型的运行时；**默认候选后端**，经官方 REST API（curl）调用。 |
 | **候选后端（`--backend`）** | 候选模型在哪跑：`ollama`（默认）或 OpenAI-compatible 端点（`openai`/`siliconflow`/`litellm`），由 `call_candidate.sh` 统一调度，新增后端=加一个 `call_*.sh`+登记一行。 |
 | **DeepSeek** | 本项目判官调用的大模型 API，是唯一的外部依赖（需自备密钥）。 |
+| **模型池 / 整池开考** | `eval/model_pool.yaml` 声明的考生名单（谁参赛/后端/think，唯一真相源）；`run_pool.sh` 让全部 enabled 模型逐个考同一份卷。 |
+| **路由清单 / 离线 MoA** | 排行榜派生的 `routing_manifest.yaml`：哪个专科/任务派哪个模型 + orchestrator 主模型提名。离线 MoA（route-to-top-k + aggregate，推理期不依赖 API，本体另建）直接消费它。 |
 
 ---
 
