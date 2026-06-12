@@ -1,5 +1,6 @@
 """model_pool：defaults 合并、schema 校验、enabled 过滤、实仓池文件健全。"""
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -53,6 +54,14 @@ class TestLoadPool(unittest.TestCase):
         path = _write_pool("models:\n  - name: a\n  - name: a\n")
         with self.assertRaises(ValueError):
             model_pool.load_pool(path)
+
+    def test_allowed_backends_match_dispatcher_case_labels(self):
+        # ALLOWED_BACKENDS（池校验）与 call_candidate.sh 的 case 分支是两处独立声明，
+        # 漂移时 YAML 校验会放行一个调度器不认识的后端——本测试把两者锁死一致。
+        dispatcher = os.path.join(os.path.dirname(__file__), "..", "bin", "call_candidate.sh")
+        with open(dispatcher, encoding="utf-8") as f:
+            labels = set(re.findall(r"^  ([a-z][a-z0-9_]*)\)$", f.read(), re.MULTILINE))
+        self.assertEqual(labels, set(model_pool.ALLOWED_BACKENDS))
 
     def test_repo_pool_file_loads_with_enabled_models(self):
         entries = model_pool.load_pool()           # 实仓 eval/model_pool.yaml
