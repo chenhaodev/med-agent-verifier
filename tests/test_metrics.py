@@ -92,5 +92,21 @@ class TestLeaderboardAggregate(unittest.TestCase):
         self.assertEqual(diag["m"]["ctx_n"], 3)
 
 
+class TestLeaderboardSinceFilter(unittest.TestCase):
+    def test_file_ts_extracts_iso_prefix(self):
+        self.assertEqual(
+            leaderboard.file_ts("/x/eval/results/2026-06-27_20-30-52_book.json"),
+            "2026-06-27_20-30-52")
+        # 无时间戳 → 退回文件名本身（不抛）
+        self.assertEqual(leaderboard.file_ts("/x/oddname.json"), "oddname.json")
+
+    def test_since_is_lexicographic_date_prefix(self):
+        # date 前缀 ≤ 同日带时刻的全串；更早日期被挡掉。这正是 --since 过滤所依赖的不变量。
+        fresh = leaderboard.file_ts("2026-06-27_20-30-52_book.json")
+        stale = leaderboard.file_ts("2026-06-13_02-16-07_book.json")
+        self.assertTrue(fresh >= "2026-06-27")     # 当日全串 ≥ 当日 date
+        self.assertFalse(stale >= "2026-06-27")    # 既往跑被排除
+
+
 if __name__ == "__main__":
     unittest.main()

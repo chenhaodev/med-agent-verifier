@@ -80,14 +80,25 @@ def _classify(row):
     return None
 
 
-def load_rows():
-    """读所有结果文件，按时间戳升序，(model,track,task,id) 去重取最新。返回 model→记录列表。"""
+def file_ts(path):
+    """从结果文件名抽 ISO 时间戳前缀（如 2026-06-27_20-30-52）；无则退回文件名本身。"""
+    m = TS_RE.search(os.path.basename(path))
+    return m.group(1) if m else os.path.basename(path)
+
+
+def load_rows(since=None):
+    """读所有结果文件，按时间戳升序，(model,track,task,id) 去重取最新。返回 model→记录列表。
+
+    since（YYYY-MM-DD，可选）：只纳入文件名时间戳 ≥ 该日期的结果——挡掉既往陈旧跑数据
+    渗进新场景报告（时间戳前缀按字典序可比，date 前缀天然小于等于同日带时刻的全串）。
+    """
     files = sorted(glob.glob(os.path.join(RESULTS_DIR, "*.json")))
+    if since:
+        files = [p for p in files if file_ts(p) >= since]
     # key=(model,track,task,id) → (ts, enriched_row)；后读（更晚 ts）覆盖
     latest = {}
     for path in files:
-        m = TS_RE.search(os.path.basename(path))
-        ts = m.group(1) if m else os.path.basename(path)
+        ts = file_ts(path)
         try:
             with open(path, encoding="utf-8") as f:
                 blob = json.load(f)
@@ -371,14 +382,20 @@ def main():
     ap.add_argument("--md", action="store_true", help="同时打印并写 leaderboard.md")
     ap.add_argument("--common", action="store_true",
                     help="每桶仅取所有受比模型共有的 record-id（严格可比）")
+    ap.add_argument("--since", metavar="YYYY-MM-DD",
+                    help="只聚合该日期（含）之后的结果文件，挡掉陈旧跑数据渗入新报告")
     args = ap.parse_args()
 
-    by_model = load_rows()
+    if args.since and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.since):
+        raise SystemExit(f"错误：--since 须为 YYYY-MM-DD，得到：{args.since}")
+
+    by_model = load_rows(since=args.since)
     agg, diagnostics = aggregate(by_model, common=args.common)
 
     out = {
         "generated": date.today().isoformat(),
         "common_subset": args.common,
+        "since": args.since,
         "models": sorted(by_model),
         "families": agg,
         "diagnostics": diagnostics,
@@ -391,8 +408,9 @@ def main():
         with open(OUT_MD, "w", encoding="utf-8") as f:
             f.write(md)
         print(md)
+    since_note = f", since≥{args.since}" if args.since else ""
     print(f"\n→ {os.path.relpath(OUT_JSON, ROOT_DIR)}  "
-          f"({len(by_model)} 模型, {sum(len(v) for v in by_model.values())} 去重记录)")
+          f"({len(by_model)} 模型, {sum(len(v) for v in by_model.values())} 去重记录{since_note})")
 
 
 if __name__ == "__main__":
