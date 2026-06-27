@@ -4,6 +4,7 @@
 #   ./bin/leaderboard.sh            # 写 eval/leaderboard.json
 #   ./bin/leaderboard.sh --md       # 同时打印并写 eval/leaderboard.md
 #   ./bin/leaderboard.sh --common   # 每桶仅取所有受比模型共有的 record-id（严格可比）
+#   ./bin/leaderboard.sh --since 2026-06-27  # 只聚合该日期起的结果（挡掉陈旧跑渗入新报告）
 # 透传所有参数给 leaderboard.py。
 
 set -euo pipefail
