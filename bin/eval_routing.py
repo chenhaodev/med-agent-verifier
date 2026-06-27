@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """eval_routing.py — F1 专科路由准确率（judge-free，零 DeepSeek 预算）。
 
-MoA 主模型的核心技能之一是「选择科室」。本评测复用 book gold 的 expected_domain 作为**真值**：
+「选择科室」是一项可量化的编排能力。本评测复用 book gold 的 expected_domain 作为**真值**：
 让候选模型对每个问题只输出一个专科，与真值精确匹配 → Accuracy。无判官、无 API 成本。
 
 候选调用经统一后端调度：subprocess 到 bin/call_candidate.sh（--backend ollama|openai|
@@ -9,7 +9,7 @@ siliconflow|litellm，默认 ollama 即官方 REST /api/generate），Python 只
 （与仓库「bash 编排 LLM、Python 管数据」一致）。
 
 结果写 eval/results/{ts}_routing.json（summary+results，track=routing），供 leaderboard.py
-归入 orchestration 族、build_routing.py 计入 orchestrator 主模型排名。
+归入 orchestration（族③）轴、场景报告（report_scenario.py）的编排稳健栏。
 
 用法：
   python3 bin/eval_routing.py --model qwen3.5 --think off

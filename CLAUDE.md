@@ -32,17 +32,21 @@ The core Phase-1 design questions are now **resolved and implemented**: the eval
 gold tracks above; the **unified data interface** is `bin/load_dataset.py` (normalizes both into one record
 discriminated by `gold_type`); **controllable subsets** are `--track/--task/--domain/--id/--limit/--sample`.
 
-**Status: Phase 1 + TASK2 built & verified** — bash-orchestrated, LLM-as-a-Judge. The verifier produces a
-**cross-model leaderboard** over local Ollama models that later feeds an **offline MoA** (route-to-top-k +
-aggregate; built separately, see the TASK2 brief below). Layout: `bin/` scripts + `eval/` prompts & registry. See
-`README.md` for the full picture. Key commands:
+**Status: Phase 1 + TASK2 built & verified** — bash-orchestrated, LLM-as-a-Judge. The verifier's final
+product is a **two-stage per-scenario empirical test report**, *not* an offline-MoA routing manifest:
+**(1) theory screen** (`bin/theory_screen.py`, pure-paper, zero LLM) reads `../agent-bench` evidence →
+`eval/theory/shortlist.yaml`; **(2) per-scenario execution** runs the cross-model leaderboard over *just the
+shortlist* → `eval/reports/<domain>-<axis>-<date>.md` (`bin/report_scenario.py`). Two hard boundaries:
+**the theory layer only reads agent-bench**, **the execution layer only tests the shortlist**. Layout:
+`bin/` scripts + `eval/` prompts & registry. See `README.md` and `docs/THEORY-VS-EXECUTE.md` for the full
+picture. Key commands:
 
 ```bash
 make help                                 # discoverable entry point: sync/check/test/lint/eval/leaderboard/calibrate/specialty/clean
 pip install -r requirements.txt          # only pyyaml  (= make install)
 cp .env.example .env                      # DEEPSEEK_API_KEY (judge) + OLLAMA_* (candidate)
 ./bin/sync_gold.sh                        # vendor Track B book gold → data/book-gold/ (= make sync; paths via MED_AGENT_* env)
-python3 -m unittest discover -s tests     # 40-test stdlib suite (= make test; also run inside check.sh)
+python3 -m unittest discover -s tests     # 51-test stdlib suite (= make test; also run inside check.sh)
 ruff check bin/*.py tests/                # lint: line-length 99, select E/F/I (= make lint)
 ./bin/check.sh                            # static gates (no judge budget): registry, both gold, Ollama smoke, TASK2 scripts
 python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect one normalized record
@@ -53,23 +57,25 @@ python3 bin/load_dataset.py --track medbench --task MedCOT --limit 1   # inspect
 python3 bin/select_subset.py                                          # (re)generate eval/subsets/{mini,medium,large}.yaml
 python3 bin/specialty_report.py                                       # judge-free Track B 专科覆盖盘点（内科▸system▸domain / 精神科▸DSM，flags n<5）
 python3 bin/calibrate_hallu.py                                        # 标定幻觉判官检测准确度 vs eval/calibration/hallu_gold.yaml（MedHallu 式 P/R/F1，含 hard 层）
-# ── TASK2: leaderboard → routing, orchestrator eval, hallucination probes, live/freshness ──
+# ── TASK2: theory-screen → per-scenario execution → report; orchestrator eval, probes, live/freshness ──
+python3 bin/theory_screen.py --domain medical --axis agent --top 5 --out eval/theory/shortlist.yaml  # stage 1: agent-bench → shortlist (zero LLM)
 python3 bin/gen_probes.py && python3 bin/gen_tool_decision.py         # (re)generate frozen probe sets
 ./bin/eval.sh --track probe --model qwen3.5                           # E: nonexistent + false-premise hallucination probes
 ./bin/eval.sh --track tool_decision --model qwen3.5                   # F2: tool-call decision (TIA, symmetric)
 python3 bin/eval_routing.py --model qwen3.5                           # F1: specialty-routing accuracy (judge-free, 0 DeepSeek)
 echo "我爸有高血压…" | ./bin/eval_live.sh --agent internists --model qwen3.5  # C: judge vs FRESH sibling answer
-./bin/run_pool.sh [--dry-run|--orchestration]                        # 整池开考: every enabled model in eval/model_pool.yaml × medium (= make pool; pool list: make pool-list)
+./bin/run_pool.sh --from-shortlist eval/theory/shortlist.yaml [--orchestration]  # stage 2: test ONLY the shortlist (model_pool.yaml = local-availability roster; pool list: make pool-list)
 ./bin/leaderboard.sh --md                                            # A: cross-model leaderboard (3 metric families, bootstrap CIs)
-python3 bin/build_routing.py                                         # B: eval/routing_manifest.yaml (top-k + orchestrator)
+python3 bin/report_scenario.py --shortlist eval/theory/shortlist.yaml --leaderboard eval/leaderboard.json --out eval/reports/  # finish: theory prior vs measured 3-axis, scenario-scoped
 ./bin/freshness_audit.sh --domain cardiology                        # D: flag stale gold vs current guidelines (read-only)
 ```
 
 **Three metric families — never blend** (separate scales): ① Capability (Track A, 0–40, per task,
 ⚠contamination-risk: public leaderboard data) · ② Specialty (Track B, 0–40, per domain + **per 科室
 rollup** 内科/精神科, hallucination `unsupported_rate`) · ③ Orchestration & robustness (Accuracy %:
-routing, TIA, probes, live). The leaderboard keeps these on distinct axes; `routing_manifest.yaml`
-weights ③ above ① (contamination-resistant).
+routing, TIA, probes, live). The leaderboard keeps these on distinct axes; the per-scenario report
+(`report_scenario.py`) lays the three axes out **side by side, never weighted into one number** — the
+reader weighs them for the scenario at hand (③ is the contamination-resistant axis).
 
 **Eval-criteria validity is documented + calibrated.** See **`eval/METRICS.md`** for the per-metric
 validity writeup (what each measures → literature anchor → effect evidence → honest limitations). The
@@ -94,7 +100,7 @@ the 40** (0–40 scale untouched); surfaced in eval summary + leaderboard diagno
 **Why the repo isn't reorganized by 科室** (unlike `../med-agent-internists`): this is an eval **harness**,
 not a knowledge agent — type-organization (`bin/` scripts + `eval/` prompts/registry) is the correct,
 orthogonal layout. The specialty axis lives in **data + reporting**: Track B `domain` *is* the 科室,
-`routing_manifest.yaml` already routes per-domain (the MoA "specialty→best model"), the leaderboard now
+the per-scenario report can be cut per-domain (domain × axis *is* the scenario), the leaderboard now
 has a stable 内科/精神科 **rollup** (most domains are n<5 → per-domain is noise), and
 `bin/specialty_report.py` gives a judge-free two-level coverage inventory. See its header for the rationale.
 
@@ -105,13 +111,20 @@ frozen in `eval/subsets/*.yaml`; "hardest" = model-free difficulty heuristic, "m
 `(track,task,domain)`-bucket round-robin (capability × specialty axes), with all 12 MedBench capabilities
 guaranteed in `mini`. Regenerate after the siblings grow.
 
-**TASK2 added (built & verified):** cross-model leaderboard (`bin/leaderboard.py`, bootstrap CIs +
-length/self-preference/contamination diagnostics) → ranked routing manifest (`bin/build_routing.py`,
-CI-overlap ties + `orchestrator:` nomination); hallucination overhaul (multi-source grounding judge +
-`gen_probes.py` nonexistent/false-premise probes, blacklist demoted to safety floor); orchestrator eval
-(`eval_routing.py` judge-free routing accuracy + `tool_decision` TIA); live-sibling dynamic eval
-(`run_sibling.sh`/`eval_live.sh`); gold freshness audit (`freshness_audit.sh`, read-only). The MoA
-inference system itself consumes `routing_manifest.yaml` and is **built separately**.
+**TASK2 added (built & verified):** two-stage theory-screen → per-scenario report — stage 1
+`bin/theory_screen.py` (pure-paper, zero LLM: reads `../agent-bench/entries/*.md` frontmatter, scores each
+candidate with a heuristic `theory_score = w_rank·rank + w_auth·authority + w_verdict·verdict −
+p_contam·contam`, emits `eval/theory/shortlist.yaml` + `screen.md`; closed-source champions become
+`ceiling_refs` with `testable=false`, local-pool models are the testable candidates bridged by a heuristic
+same-family guess — neutral prior + "区分留给阶段2实测" when no same-family champion exists),
+`bin/filter_shortlist.py` (filters run_pool's pool TSV down to shortlist tier∈{must-test,optional}&testable,
+warns `missing_local:`), stage 2 `bin/report_scenario.py` (shortlist + `eval/leaderboard.json` →
+`eval/reports/<domain>-<axis>-<date>.md`, 三轴分列 + 理论↔实测 divergence flags, scenario-scoped). Plus:
+cross-model leaderboard (`bin/leaderboard.py`, bootstrap CIs + length/self-preference/contamination
+diagnostics); hallucination overhaul (multi-source grounding judge + `gen_probes.py`
+nonexistent/false-premise probes, blacklist demoted to safety floor); orchestrator eval (`eval_routing.py`
+judge-free routing accuracy + `tool_decision` TIA — kept as family-③ capability metrics); live-sibling
+dynamic eval (`run_sibling.sh`/`eval_live.sh`); gold freshness audit (`freshness_audit.sh`, read-only).
 
 **Still deferred:** structured-task judge overrides (CallAPI/RetAPI/DBOps), crisis/OOB safety-interception
 recall, MedEthics accuracy path (parser ready in `bin/parse_choice.py`; no jsonl yet — see
@@ -119,19 +132,18 @@ recall, MedEthics accuracy path (parser ready in `bin/parse_choice.py`; no jsonl
 upgrade), probe validity `--verify` for false-premise (currently `needs_review`, only `nonexistent` scored).
 
 **Pool run done (2026-06-11 night, `./bin/run_pool.sh --orchestration`: 4 models × medium + 族③,
-~6.5h, exit 0, zero pipeline errors).** The leaderboard now has stable 内科/精神科 rollups (n=32/model,
-strict size-monotonic: qwen3.5:latest > :2b > qwen2.5:1.5b > qwen3.5:0.8b) and a **pool-wide
-orchestration axis** — specialty_routing 0.77→0.41, TIA 0.80→0.60, nonexistent-probe 0.60→**0.00**
-down the size ladder; orchestrator nomination = qwen3.5:latest (composite 0.785). **Open: per-domain
-routing is still gated.** `medium` yields only **n≈2/domain** (not the ~3 previously assumed) — below
-`build_routing.py` `min_n=5`, so all 38 manifest `domains:` remain `insufficient_data` at defaults
-(MoA falls back correctly). Two unlocks: (a) `./bin/run_pool.sh --track book` (full 235 Track B →
-n≈6/domain, crosses min_n=5; ~2–3h/model) for a statistically defensible manifest, or (b)
-`python3 bin/build_routing.py --min-n 2` for a provisional one (27/38 domains routable; qwen3.5:latest
-top-1 in 22, qwen3.5:2b in 5 — but n=2 rankings are noise-level). **Current on-disk manifest = the
-provisional `--min-n 2` version (chosen 2026-06-12)** — MoA consumers should treat per-domain ranks as
-noise-level; regenerate at default min_n=5 after the full `--track book` pool run.
-**Excluded from the text pool** (codified in `model_pool.yaml`'s 永不入池 list): vision models
+~6.5h, exit 0, zero pipeline errors).** These measured numbers now feed the **per-scenario report**, not a
+routing manifest. The leaderboard has stable 内科/精神科 rollups (n=32/model, strict size-monotonic:
+qwen3.5:latest > :2b > qwen2.5:1.5b > qwen3.5:0.8b) and a **pool-wide orchestration axis** —
+specialty_routing 0.77→0.41, TIA 0.80→0.60, nonexistent-probe 0.60→**0.00** down the size ladder. The
+family-③ axes are read as capability metrics in the scenario report (no MoA orchestrator nomination).
+Per-domain numbers stay noise-level on `medium` (**n≈2/domain**, not the ~3 previously assumed), so
+report_scenario juxtaposes the theory prior against the **rollup-level** measured axes rather than
+per-domain ranks; a per-domain cut needs the full `./bin/run_pool.sh --from-shortlist … --track book`
+(235 Track B → n≈6/domain). **The earlier pre-refactor candidate roster** (these four qwen sizes) came
+from the pool's 全量盲跑; the roster now comes from the theory-screen shortlist, and `model_pool.yaml` is
+just the local-availability filter for it.
+**Excluded from the local pool** (codified in `model_pool.yaml`'s 永不入池 list): vision models
 (e.g. `minicpm-v4.6:1b`) — ~4× slower, garbage text scores, OLLAMA-error-prone — and
 embedding/reranker models (cannot generate).
 
@@ -150,17 +162,17 @@ Full-scale findings vs the medium run: ordering unchanged (latest > 2b) but the 
 the deterministic-hallucination floor goes 0 → 2 hits/model (only visible at n=235); and
 context-awareness becomes sharply discriminative (97% vs 68%). Judge catches verified as real on spot
 check (e.g. 沙丁胺醇「喷鼻」用法错误 18/40, 甲氨蝶呤前后矛盾). The small models (0.8b/1.5b) were
-strictly dominated on every axis in the medium run and are **not routing candidates** — their full-book
-data is optional, not blocking.
+strictly dominated on every axis in the medium run; for a medical-agent scenario the theory screen would
+shortlist the top sizes, so the small models' full-book data is **optional, not blocking**.
 
 **未来规划 (as of 2026-06-13):**
-1. **Regenerate leaderboard + manifest at default `min_n=5`** — `./bin/leaderboard.sh --md &&
-   python3 bin/build_routing.py`. The two completed models are exactly the top-2 routing candidates and
-   now have n≈6/domain, so a statistically defensible per-domain manifest over {latest, 2b} is already
-   buildable; 0.8b/1.5b stay on their medium-run data (sufficient for the size-ladder narrative).
-2. **Refresh README 「看它怎么测 · 第三幕」snapshot** with the full-book numbers (and the manifest
-   告警 blockquote in 「从一场考试到一张路由清单」 once the min_n=5 manifest replaces the provisional
-   `--min-n 2` one).
+1. **Run the canonical two-stage chain end-to-end for the medical-agent scenario** —
+   `theory_screen.py → run_pool.sh --from-shortlist → leaderboard.sh → report_scenario.py` — and commit
+   the first real `eval/reports/medical-agent-<date>.md`. The two completed full-book models (latest, 2b)
+   are exactly the shortlist's must-test tier, so their measured three-axis numbers populate the report's
+   实测 column directly.
+2. **Refresh README 「看它怎么测 · 第三幕」snapshot** with the full-book numbers, framed as input to the
+   scenario report (not a manifest).
 3. *Optional:* finish `--track book` for 0.8b/1.5b (~5–6h) only if small-model per-domain evidence is
    ever needed; the killed 0.8b partial must be re-run from scratch (generation cache was off).
 4. Then resume the **Still deferred** list above (structured-task judge overrides, MedEthics path,
@@ -176,7 +188,9 @@ data is optional, not blocking.
 >
 > 那么如何建立一个评测集？统一化数据接口标准？可控/可控子集？
 
-**TASK2 brief (was `TASK2.md`)** — the extension that produced leaderboard → routing → offline MoA:
+**TASK2 brief (was `TASK2.md`)** — the extension that produced the leaderboard family. (The original ask
+was an offline-MoA routing manifest; that final endpoint has since been **superseded** by the two-stage
+theory-screen → per-scenario report — see Status above and `docs/THEORY-VS-EXECUTE.md`.):
 
 > Ive finished TASK.md, that use a "book (../med-agent-internists)" and benchmark (Medbench-agent) to
 > verify ollama models' correctness etc.
@@ -192,8 +206,9 @@ data is optional, not blocking.
 > NOTE: To be clear, verifier/judge should be DeepSeek -- but once finished eval on ollama LLMs, I will
 > have leadboard on them, and I can use this info to build my offline llms (MOA) solution later-on
 
-Both briefs are fully implemented (see Status above); "TASK2" survives as the name of the
-leaderboard/routing/probe/live feature family in scripts and docs.
+Both briefs are fully implemented (see Status above), with the final deliverable pivoted from an offline-MoA
+manifest to a two-stage theory-screen → per-scenario report; "TASK2" survives as the name of the
+leaderboard/theory-screen/probe/live feature family in scripts and docs.
 
 ## The reference dataset: `data/medbench-agent-95/`
 

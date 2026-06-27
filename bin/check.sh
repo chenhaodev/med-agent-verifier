@@ -52,7 +52,8 @@ else
 fi
 
 # 5) TASK2 特性脚本健全性（零 judge 预算：仅语法/解析/loader）
-for s in leaderboard build_routing gen_probes gen_tool_decision eval_routing parse_choice \
+for s in leaderboard theory_screen filter_shortlist report_scenario gen_probes gen_tool_decision \
+         eval_routing parse_choice \
          freshness_audit parse_hallu specialty_map specialty_report calibrate_hallu model_pool; do
   python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$ROOT_DIR/bin/$s.py" 2>/dev/null \
     && pass "bin/$s.py 语法 ok" || fail "bin/$s.py 语法错误"

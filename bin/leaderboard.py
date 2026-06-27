@@ -14,7 +14,7 @@ results 行上，跨所有跑聚合，产出按**三个互不可比的度量族*
   - bootstrap 95% CI：每 (model,bucket) 出 ci_low/ci_high；mini 桶 n 小、点排名是噪声，
     CI 供 B 判并列。
   - judge 偏置诊断：长度↔分相关（从 model_response 现算）；judge 同源 self-preference 标记。
-  - 抗污染：标记每模型是否有 family-3/live（抗 MedBench 记忆）数据，供 routing 降权 Track A。
+  - 抗污染：标记每模型是否有 family-3/live（抗 MedBench 记忆）数据，供场景报告对 Track A 降权参考。
   - 不可比铁律：三族分轴呈现，A/B 各自 0–40 但规约不同，**永不合并成一个顶线**。
 
 不可变性：只读结果文件，逐行 emit 新对象，从不就地修改。
@@ -306,7 +306,7 @@ def render_md(agg, diagnostics):
     """三族分轴的人类可读表。"""
     lines = [f"# Leaderboard — {date.today().isoformat()}", ""]
     lines.append("> 三个度量族互不可比（capability/specialty 为 0–40 但规约不同；orchestration 为 "
-                 "Accuracy）。**勿跨族比较**。CI 重叠的模型视为并列（见 routing_manifest）。")
+                 "Accuracy）。**勿跨族比较**。CI 重叠的模型视为并列。")
     lines.append("")
     fam_titles = [
         ("capability", "Capability — Track A（每 task，0–40，⚠ 公开榜数据有记忆/污染风险）"),

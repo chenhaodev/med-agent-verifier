@@ -1,0 +1,106 @@
+<svg viewBox="0 0 960 760" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, 'Segoe UI', 'PingFang SC', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowDash" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#c026d3"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="760" fill="#ffffff"/>
+  <text x="32" y="42" font-size="24" font-weight="700" fill="#0f172a">chenhao / focus — 仓库关系图</text>
+  <text x="32" y="66" font-size="13" fill="#64748b">三个家族 · 两两配对拆解 + med-agent 评测链</text>
+
+  <!-- ============ PANEL A: crawling pair ============ -->
+  <rect x="32" y="90" width="896" height="180" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="52" y="118" font-size="15" font-weight="700" fill="#0369a1">A · 爬网页这件事:通用库 vs 成套流水线</text>
+
+  <!-- agentcurl -->
+  <rect x="60" y="134" width="360" height="116" rx="10" fill="#e0f2fe" stroke="#7dd3fc"/>
+  <text x="80" y="158" font-size="14" font-weight="700" fill="#0c4a6e">agentcurl  ·  通用中间件(库)</text>
+  <text x="80" y="180" font-size="12" fill="#0f172a">接口  fetch / crawl / extract</text>
+  <text x="80" y="200" font-size="11" fill="#475569">CRAWL_BACKEND= static→browser→crawl4ai</text>
+  <text x="80" y="216" font-size="11" fill="#475569">→firecrawl→jina  (一个环境变量切换)</text>
+  <text x="80" y="238" font-size="11.5" fill="#0369a1" font-weight="600">出口:网页 → JSON(DeepSeek 抽取)</text>
+
+  <!-- e4a-web2graph -->
+  <rect x="540" y="134" width="360" height="116" rx="10" fill="#ede9fe" stroke="#c4b5fd"/>
+  <text x="560" y="158" font-size="14" font-weight="700" fill="#4c1d95">e4a-web2graph  ·  成套流水线(应用)</text>
+  <text x="560" y="180" font-size="12" fill="#0f172a">acquire → graphify → connect → wiki</text>
+  <text x="560" y="200" font-size="11" fill="#475569">acquire.py 驱动 opencli / browser-harness</text>
+  <text x="560" y="216" font-size="11" fill="#475569">router 技能决定走哪层</text>
+  <text x="560" y="238" font-size="11.5" fill="#6d28d9" font-weight="600">出口:网页 → 知识图谱 + Obsidian wiki</text>
+
+  <!-- seam arrow -->
+  <line x1="420" y1="192" x2="540" y2="192" stroke="#c026d3" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowDash)"/>
+  <text x="430" y="184" font-size="10.5" fill="#c026d3" font-weight="600">可整合的接缝</text>
+  <text x="424" y="210" font-size="9.5" fill="#a21caf">(把 acquire 后端换成 agentcurl,目前未接)</text>
+
+  <!-- ============ PANEL B: review pair ============ -->
+  <rect x="32" y="288" width="896" height="180" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="52" y="316" font-size="15" font-weight="700" fill="#b45309">B · 主观评议:同源 schema,plan = bench 的超集</text>
+
+  <!-- agent-bench -->
+  <rect x="60" y="332" width="360" height="116" rx="10" fill="#fef3c7" stroke="#fcd34d"/>
+  <text x="80" y="356" font-size="14" font-weight="700" fill="#92400e">agent-bench  ·  评 AI 榜单</text>
+  <text x="80" y="378" font-size="11.5" fill="#0f172a">entry = 单层(一个榜单)</text>
+  <text x="80" y="396" font-size="11" fill="#475569">特有:methodology · models_ranked</text>
+  <text x="80" y="414" font-size="11" fill="#475569">popularity / authority / 能力  三轴防刷</text>
+  <text x="80" y="436" font-size="11.5" fill="#b45309" font-weight="600">moa:选哪个榜冠军进 MoA</text>
+
+  <!-- agent-plan -->
+  <rect x="540" y="332" width="360" height="116" rx="10" fill="#fee2e2" stroke="#fca5a5"/>
+  <text x="560" y="356" font-size="14" font-weight="700" fill="#991b1b">agent-plan  ·  评数字医疗 源/实体</text>
+  <text x="560" y="378" font-size="11.5" fill="#0f172a">entry = 两类 kind:source / entity</text>
+  <text x="560" y="396" font-size="11" fill="#475569">+ backed_by 背书链(实体→源,门禁强校验)</text>
+  <text x="560" y="414" font-size="11" fill="#475569">+ evidence 证据块(RCT/终点)</text>
+  <text x="560" y="436" font-size="11.5" fill="#991b1b" font-weight="600">双 MoA:Agents 视图 + Mechanism 视图</text>
+
+  <line x1="420" y1="390" x2="540" y2="390" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="430" y="382" font-size="10.5" fill="#475569" font-weight="600">继承骨架</text>
+  <text x="424" y="404" font-size="9.5" fill="#64748b">事实/判语分离 + 多轴</text>
+
+  <!-- ============ PANEL C: med-agent trio ============ -->
+  <rect x="32" y="486" width="896" height="244" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="52" y="514" font-size="15" font-weight="700" fill="#047857">C · med-agent 三件套:两个产品代理 + 一个评测器</text>
+  <text x="52" y="534" font-size="11" fill="#64748b">同一架构:DeepSeek + Unix-CLI · 确定性关键词路由 · 结构化知识注入(无 RAG) · 越界拦截 · 可量化金标</text>
+
+  <!-- internists -->
+  <rect x="60" y="548" width="270" height="96" rx="10" fill="#d1fae5" stroke="#6ee7b7"/>
+  <text x="78" y="572" font-size="13.5" font-weight="700" fill="#065f46">med-agent-internists</text>
+  <text x="78" y="592" font-size="11" fill="#0f172a">西氏内科学 · 126 章/18 专科</text>
+  <text x="78" y="610" font-size="11" fill="#475569">患者/医生双模 · 溯源到页码</text>
+  <text x="78" y="630" font-size="11" fill="#475569">知识源 = 教材卡片</text>
+
+  <!-- stcc -->
+  <rect x="60" y="652" width="270" height="62" rx="10" fill="#d1fae5" stroke="#6ee7b7"/>
+  <text x="78" y="676" font-size="13.5" font-weight="700" fill="#065f46">med-agent-stcc</text>
+  <text x="78" y="696" font-size="11" fill="#475569">STCC 护士分诊 · 225 协议 · A/B/C/D</text>
+
+  <!-- psy (sibling, dashed) -->
+  <rect x="346" y="652" width="200" height="62" rx="10" fill="#ecfdf5" stroke="#a7f3d0" stroke-dasharray="4 3"/>
+  <text x="364" y="676" font-size="12.5" font-weight="700" fill="#047857">med-agent-psy</text>
+  <text x="364" y="696" font-size="10.5" fill="#64748b">同族 · 精神科(亦作金标)</text>
+
+  <!-- verifier -->
+  <rect x="600" y="548" width="300" height="166" rx="10" fill="#cffafe" stroke="#67e8f9"/>
+  <text x="620" y="572" font-size="13.5" font-weight="700" fill="#155e75">med-agent-verifier  ·  上层评测器</text>
+  <text x="620" y="594" font-size="11" fill="#0f172a">考遍本地模型池(Ollama/API)</text>
+  <text x="620" y="613" font-size="11" fill="#475569">Track A:MedBench-Agent-95(能力)</text>
+  <text x="620" y="631" font-size="11" fill="#475569">Track B:internists + psy 蒸馏金标(诚信)</text>
+  <text x="620" y="649" font-size="11" fill="#475569">能力 / 诚信 / 编排 三轴不混算</text>
+  <text x="620" y="671" font-size="11.5" fill="#0e7490" font-weight="700">→ 场景报告（理论筛 + 实测三轴）</text>
+  <text x="620" y="690" font-size="10.5" fill="#155e75">阶段1 理论筛 · 阶段2 按场景实测</text>
+
+  <!-- arrows: agents -> verifier gold -->
+  <path d="M330 596 C 470 600, 480 620, 600 622" fill="none" stroke="#0e7490" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="392" y="612" font-size="10" fill="#0e7490" font-weight="600">页码金标 → book-gold/</text>
+
+  <!-- verifier routing -> MoA (links to panel B concept) -->
+  <line x1="750" y1="468" x2="750" y2="548" stroke="#0e7490" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="757" y="500" font-size="10" fill="#0e7490">agent-bench 榜单证据</text>
+  <text x="757" y="514" font-size="10" fill="#0e7490">→ 阶段1 理论先验输入</text>
+
+  <text x="32" y="748" font-size="10.5" fill="#94a3b8">实线=继承/数据流  ·  紫色虚线=可整合接缝  ·  灰色虚线=概念呼应   |   chenhaodev · 2026-06-27</text>
+</svg>

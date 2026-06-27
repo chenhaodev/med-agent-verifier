@@ -14,3 +14,7 @@ __pycache__/
 .loop/
 eval/calibration/last_report.json
 *.log
+
+# 两阶段派生产物（阶段1短名单 / 阶段2场景报告，可由 theory_screen/report_scenario 重生）
+eval/theory/
+eval/reports/
