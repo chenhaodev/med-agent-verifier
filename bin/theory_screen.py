@@ -41,8 +41,11 @@ CONSERVATIVE = 0.3
 NEUTRAL_PRIOR = 0.4  # 无同族榜单证据时,可实测本地候选的中性先验
 TIER_MUST = 0.55     # theory_score 阈值：≥ → must-test
 TIER_OPT = 0.30      # ≥ → optional，否则 skip
-FAMILY_WORDS = ("claude", "gpt", "gemini", "qwen", "llama", "glm", "baichuan",
-                "mistral", "deepseek", "phi", "minimind", "safemed", "pulse")
+# 本地开源族（model_pool 里可能出现的）：单一真相源——既判定「可实测候选 vs 天花板参照」，
+# 又拼进 FAMILY_WORDS 供启发式同族抽取。改这里一处即可，避免与 build_ceilings 的剔除表漂移。
+LOCAL_FAMILIES = ("qwen", "llama", "glm", "baichuan", "minimind", "safemed")
+FAMILY_WORDS = ("claude", "gpt", "gemini", "mistral", "deepseek", "phi", "pulse",
+                *LOCAL_FAMILIES)
 
 
 # ── frontmatter 解析(照搬 agent-bench/bin/render_site.py 的切片法)──────────────
@@ -180,8 +183,7 @@ def best_match(cand_name, champs):
         scored.append((round(ev, 3), c))
     if not scored:
         return None
-    scored.sort(key=lambda t: t[0], reverse=True)
-    return scored[0]  # (evidence_score, champ_row)
+    return max(scored, key=lambda t: t[0])  # (evidence_score, champ_row)
 
 
 def build_candidates(pool, champs, prefer_license):
@@ -227,7 +229,7 @@ def build_ceilings(champs, domain, axis):
     for c in sorted(champs, key=lambda x: x["base_score"], reverse=True):
         if c["relevance"] < 0.5 or c["model"] in seen:
             continue
-        if c["family"] in ("qwen", "llama", "glm", "baichuan", "minimind", "safemed"):
+        if c["family"] in LOCAL_FAMILIES:
             continue  # 本地族，归入候选而非天花板
         seen.add(c["model"])
         out.append({

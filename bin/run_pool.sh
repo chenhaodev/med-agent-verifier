@@ -48,7 +48,7 @@ POOL_TSV=$(python3 "$SCRIPT_DIR/model_pool.py" --tsv) || {
 # 阶段1→阶段2 接缝：按短名单过滤池（理论想测但本地缺 → 报 missing_local，不中断）。
 if [[ -n "$SHORTLIST" ]]; then
   [[ -f "$SHORTLIST" ]] || { echo "错误：短名单不存在：$SHORTLIST" >&2; exit 1; }
-  POOL_TSV=$(python3 "$SCRIPT_DIR/model_pool.py" --tsv \
+  POOL_TSV=$(printf '%s\n' "$POOL_TSV" \
     | python3 "$SCRIPT_DIR/filter_shortlist.py" "$SHORTLIST") || {
       echo "错误：短名单过滤失败：$SHORTLIST" >&2; exit 1; }
   [[ -n "$POOL_TSV" ]] || { echo "错误：短名单与本地池无交集（全 missing_local？）。" >&2; exit 1; }

@@ -25,9 +25,19 @@ import yaml
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _resolve(p):
+    """相对路径按 ROOT_DIR 解析；绝对路径原样返回。"""
+    return p if os.path.isabs(p) else os.path.join(ROOT_DIR, p)
+
+
 def mean(xs):
     xs = [x for x in xs if x is not None]
     return round(sum(xs) / len(xs), 2) if xs else None
+
+
+def combined_score(r):
+    """本地候选的实测综合（能力 + 诚信，各 0–40）；无数据 → 0。"""
+    return mean([r["capability"], r["honesty"]]) or 0.0
 
 
 def axis_capability(families, model):
@@ -80,9 +90,7 @@ def diff_notes(rows):
     if len(measured) < 2:
         return ["实测候选 < 2，暂不评理论↔实测一致性（先把短名单跑出实测数据）。"]
     # 实测综合（能力+诚信，各 0–40）排序 vs 理论排序
-    def combined(r):
-        return mean([r["capability"], r["honesty"]]) or 0.0
-    by_measured = sorted(measured, key=combined, reverse=True)
+    by_measured = sorted(measured, key=combined_score, reverse=True)
     by_theory = sorted(measured, key=lambda r: r["theory"], reverse=True)
     if [r["model"] for r in by_measured] != [r["model"] for r in by_theory]:
         out.append(f"理论序 {[r['model'] for r in by_theory]} ≠ 实测序 "
@@ -135,7 +143,7 @@ def _conclusion(rows):
     if not measured:
         return ("短名单尚无实测数据——先 `./bin/run_pool.sh --from-shortlist … && "
                 "./bin/leaderboard.sh` 再回看本报告。")
-    best = max(measured, key=lambda r: mean([r["capability"], r["honesty"]]) or 0.0)
+    best = max(measured, key=combined_score)
     return (f"本场景实测综合最优：**{best['model']}**"
             f"（能力 {fmt(best['capability'])} / 诚信 {fmt(best['honesty'])} / "
             f"编排 {fmt(best['orchestration'], pct=True)}）。"
@@ -149,10 +157,8 @@ def main():
     ap.add_argument("--out", default="eval/reports/", help="输出目录")
     args = ap.parse_args()
 
-    sl_path = os.path.join(ROOT_DIR, args.shortlist) if not os.path.isabs(args.shortlist) \
-        else args.shortlist
-    lb_path = os.path.join(ROOT_DIR, args.leaderboard) if not os.path.isabs(args.leaderboard) \
-        else args.leaderboard
+    sl_path = _resolve(args.shortlist)
+    lb_path = _resolve(args.leaderboard)
     if not os.path.isfile(sl_path):
         raise SystemExit(f"错误：短名单不存在：{sl_path}（先跑 theory_screen.py）")
 
@@ -173,7 +179,7 @@ def main():
     notes = diff_notes(rows)
     md = render(scenario, rows, ceilings, notes)
 
-    out_dir = os.path.join(ROOT_DIR, args.out) if not os.path.isabs(args.out) else args.out
+    out_dir = _resolve(args.out)
     os.makedirs(out_dir, exist_ok=True)
     name = f"{scenario['domain']}-{scenario['axis']}-{date.today().isoformat()}.md"
     out_path = os.path.join(out_dir, name)
