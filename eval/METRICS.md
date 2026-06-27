@@ -14,7 +14,8 @@
 | ③ Orchestration/Robustness | routing / TIA / probe / live | Accuracy % | 派生真值 / 兄弟现答 | 抗污染 |
 | 附加信号 | 幻觉率、context-awareness | 见下 | — | — |
 
-`routing_manifest.yaml` 让 ③（抗污染）权重高于 ①（公开榜）——MoA 选型据此。
+场景报告（`bin/report_scenario.py`）把三族**分轴并列、不加权成一个数**，由读者按场景自行权衡；
+③ 是抗污染轴。另有 **`theory_score`** 作为阶段1的先验/triage（不属上述任何一族，见 §6）。
 
 ---
 
@@ -74,13 +75,38 @@
 - domain=科室（Track B 37 专科）；leaderboard 出**每 domain** + **内科/精神科 rollup**（多数 domain
   n<5，逐 domain 是噪声，rollup 是稳定读数）。`bin/specialty_report.py` 给 judge-free 覆盖盘点。
 - **为何不按科室重排目录**：本仓是评测 **harness**，按类型组织（bin/eval）正确；专科轴属数据+报告，
-  `routing_manifest` 已按 domain 路由（MoA「专科→最佳模型」）。
+  场景报告（`report_scenario.py`）按 domain 分专科呈现实测排名。
 
 ## 5. Orchestration/Robustness（Accuracy %，抗污染）
 - **routing**：judge-free 专科路由准确率（真值=expected_domain，零 DeepSeek）。
 - **tool_decision (TIA)**：对称计分（该调用就调用、不该就别调用）。
 - **probe**：nonexistent 拒答（verified）/ false_premise 纠偏（needs_review，待 `--verify`）。
 - **live**：与兄弟现答一致性（抗 MedBench 记忆）；测一致性，非绝对真值。
+
+## 6. theory_score（阶段1 理论先验 / triage，**不替代实测分**）
+- **量什么**：在执行任何模型前，用 `../agent-bench/entries/*.md` 的榜单证据给候选合成一个纸面
+  优先级，决定**谁值得实测**（must-test / optional / skip）。**零 LLM 调用、完全可解释、可复现**。
+- **公式**（`bin/theory_screen.py`，权重 CLI 可覆盖）：
+  ```
+  theory_score = w_rank·rank_score      # 相关 axis 名次归一：rank1=1.0 递减；缺 rank→0.5 保守
+               + w_auth·authority_score  # 由真实字段派生（见下）
+               + w_verdict·verdict_score # expert_verdict.confidence: high=1 / medium=0.6 / low=0.3 / 缺=0.3
+               − p_contam·contam_penalty # genre=online-leaderboard 且无 contamination_controls → 1.0 扣分
+  默认 w_rank=0.4  w_auth=0.3  w_verdict=0.3  p_contam=0.2
+  ```
+  - **authority_score**（无「临床参与」字段，纯由 frontmatter 真实字段派生）：
+    `0.4·institution_count/500 + 0.2·citation_count.value/1000 + 0.2·maintainers数/3 + 0.2·update_cadence`
+    （live/monthly 加成、frozen 减成），全部 clip 到 [0,1]。
+  - `license` 仅作标注 / `--prefer-license` 排序加成（+0.05），**不进核心公式**。
+- **关键边界——闭源标杆 ≠ 可实测候选**：agent-bench 医疗·agent 轴的 `models_ranked` 冠军几乎全为
+  闭源前沿模型（Claude/GPT/Gemini）。`theory_screen.py` 分两类输出：(a) 闭源冠军 → `ceiling_refs`
+  （`testable=false`，天花板参照，不入实测队列）；(b) 本地池模型 → 可实测候选。用**启发式同族**
+  （模型名家族词 + 规模数字 ∩ `model_pool.yaml`）把 (a) 证据迁移到 (b) 的先验；无同族证据时退回
+  **中性先验 0.4**，`why` 注明「无同族榜单证据，区分留给阶段2实测」——绝不编造区分度。
+- **效度定位 / 诚实局限**：theory_score 是 **triage 先验，不是能力分**。它的判别力受限于「医疗榜只排
+  闭源模型」这一现实——本地候选常拿不到同族证据而并列。**真正的区分由阶段2实测给出**；场景报告
+  （`report_scenario.py`）显式并列「理论先验 vs 实测三轴」并标注二者的差异点（纸面高/实测崩）。
+  启发式同族映射的脆弱性（名字/规模字符串匹配易误）在 `docs/THEORY-VS-EXECUTE.md` 单列，需人核对。
 
 ---
 

@@ -1,0 +1,143 @@
+scenario:
+  domain: medical
+  axis: agent
+  as_of: '2026-06-27'
+weights:
+  w_rank: 0.4
+  w_auth: 0.3
+  w_verdict: 0.3
+  p_contam: 0.2
+candidates:
+- model: qwen3.5:latest
+  testable: true
+  mapped_local: qwen3.5:latest
+  license: open-weights
+  size_b: null
+  theory_score: 0.4
+  tier: optional
+  why:
+  - 无同族榜单证据：agent-bench 该场景冠军无 qwen 本地近邻 → 中性先验 0.4，区分留给阶段2实测
+  source_entries: []
+- model: qwen3.5:2b
+  testable: true
+  mapped_local: qwen3.5:2b
+  license: open-weights
+  size_b: 2.0
+  theory_score: 0.4
+  tier: optional
+  why:
+  - 无同族榜单证据：agent-bench 该场景冠军无 qwen 本地近邻 → 中性先验 0.4，区分留给阶段2实测
+  source_entries: []
+- model: qwen2.5:1.5b
+  testable: true
+  mapped_local: qwen2.5:1.5b
+  license: open-weights
+  size_b: 1.5
+  theory_score: 0.4
+  tier: skip
+  why:
+  - 无同族榜单证据：agent-bench 该场景冠军无 qwen 本地近邻 → 中性先验 0.4，区分留给阶段2实测
+  - --top 2 截断：超出短名单上限 → 降为 skip
+  source_entries: []
+- model: qwen3.5:0.8b
+  testable: true
+  mapped_local: qwen3.5:0.8b
+  license: open-weights
+  size_b: 0.8
+  theory_score: 0.4
+  tier: skip
+  why:
+  - 无同族榜单证据：agent-bench 该场景冠军无 qwen 本地近邻 → 中性先验 0.4，区分留给阶段2实测
+  - --top 2 截断：超出短名单上限 → 降为 skip
+  source_entries: []
+ceiling_refs:
+- model: Claude Sonnet 4.5
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.884
+  tier: ceiling-ref
+  why:
+  - medbench axis=base-LLM rank=1，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - medbench
+- model: GPT-5
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.884
+  tier: ceiling-ref
+  why:
+  - medbench axis=multimodal rank=1，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - medbench
+- model: Claude Sonnet 4.5 (agent)
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.884
+  tier: ceiling-ref
+  why:
+  - medbench axis=agent rank=1，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - medbench
+- model: PULSE
+  testable: false
+  mapped_local: null
+  license: open-source
+  theory_score: 0.562
+  tier: ceiling-ref
+  why:
+  - pulse-ecg axis=ecg-image-interpretation rank=1，闭源前沿，作天花板参照(不入实测队列)；专家信心=n/a
+  source_entries:
+  - pulse-ecg
+- model: GPT-5.2
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.552
+  tier: ceiling-ref
+  why:
+  - rcq axis=real-clinical-queries rank=None，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - rcq
+- model: Gemini 3.1 Pro
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.552
+  tier: ceiling-ref
+  why:
+  - rcq axis=real-clinical-queries rank=None，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - rcq
+- model: Claude Opus 4.6
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.552
+  tier: ceiling-ref
+  why:
+  - rcq axis=real-clinical-queries rank=None，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - rcq
+- model: OpenEvidence
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.552
+  tier: ceiling-ref
+  why:
+  - rcq axis=real-clinical-queries rank=None，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - rcq
+- model: UpToDate Expert AI
+  testable: false
+  mapped_local: null
+  license: closed
+  theory_score: 0.552
+  tier: ceiling-ref
+  why:
+  - rcq axis=real-clinical-queries rank=None，闭源前沿，作天花板参照(不入实测队列)；专家信心=high
+  source_entries:
+  - rcq

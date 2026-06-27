@@ -4,8 +4,8 @@
 为什么需要它（并回答「为何 repo 不按科室分目录」）：
   本仓是**评测 harness**（验证 Ollama 模型的医学能力），不是知识 agent；按**类型**组织
   bin/(脚本)+eval/(prompt/registry) 是 harness 的正交关注点，正确做法。专科（科室）轴
-  存在于**数据与报告**里：Track B 的 domain 即科室，routing_manifest 已按 domain 路由
-  （MoA 的「专科→最佳模型」即靠它）。本报告把这条轴显式化为人类可读的两级盘点
+  存在于**数据与报告**里：Track B 的 domain 即科室，场景报告（report_scenario.py）按 domain
+  分专科呈现实测排名。本报告把这条轴显式化为人类可读的两级盘点
   （broad_area ▸ system ▸ domain），对齐 med-agent-internists/psy 的科室分章，
   无需重排目录。
 

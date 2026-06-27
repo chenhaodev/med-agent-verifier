@@ -17,7 +17,7 @@ _THINK  = $(if $(THINK),--think $(THINK),)
 _JUDGE  = $(if $(JUDGE),--judge-model $(JUDGE),)
 
 .DEFAULT_GOAL := help
-.PHONY: help install sync check test lint eval leaderboard routing calibrate specialty probes clean
+.PHONY: help install sync check test lint eval leaderboard theory calibrate specialty probes clean
 
 help:  ## 列出所有 target
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -50,8 +50,8 @@ pool-list:  ## 看模型池名单（含 disabled）
 leaderboard:  ## 聚合所有结果 → 三族分轴排行榜（Markdown）
 	./bin/leaderboard.sh --md
 
-routing:  ## 由排行榜派生 routing_manifest.yaml（MoA 选型依据）
-	$(PY) bin/build_routing.py
+theory:  ## 阶段1 理论评定：读 agent-bench 证据 → eval/theory/shortlist.yaml（零 LLM）
+	$(PY) bin/theory_screen.py --domain medical --axis agent --out eval/theory/shortlist.yaml
 
 calibrate:  ## 标定幻觉判官检测准确度（MedHallu 式 P/R/F1，含 hard 层）→ eval/METRICS.md
 	$(PY) bin/calibrate_hallu.py
@@ -62,8 +62,8 @@ specialty:  ## Track B 专科覆盖盘点（judge-free，零预算）
 probes:  ## （重）生成冻结探针集 + 工具决策集
 	$(PY) bin/gen_probes.py && $(PY) bin/gen_tool_decision.py
 
-clean:  ## 清理派生产物（结果/缓存/排行榜/路由清单；不动 gold 与探针）
+clean:  ## 清理派生产物（结果/缓存/排行榜/场景报告；不动 gold 与探针）
 	rm -rf eval/results/*.json eval/results/*_summary.txt .cache \
-	  eval/leaderboard.json eval/leaderboard.md eval/routing_manifest.yaml \
+	  eval/leaderboard.json eval/leaderboard.md eval/reports/*.md \
 	  eval/calibration/last_report.json eval/freshness 2>/dev/null || true
 	@echo "已清理派生产物。"
